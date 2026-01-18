@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Custom styles for ZAFESYS Suite */
+:root {
+  --primary: #00A3E0;
+  --primary-dark: #0077B5;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Kanban column styling */
+.kanban-column {
+  @apply bg-gray-100 rounded-lg p-3 min-h-96;
+}
+
+.kanban-card {
+  @apply bg-white rounded-lg shadow-sm p-3 mb-2 cursor-grab border border-gray-200;
+  @apply hover:shadow-md hover:border-primary/30 transition-all;
+}
+
+.kanban-card.dragging {
+  @apply shadow-lg opacity-75 cursor-grabbing;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
