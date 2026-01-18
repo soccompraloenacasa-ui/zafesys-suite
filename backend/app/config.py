@@ -3,6 +3,7 @@ ZAFESYS Suite - Configuration
 """
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -19,12 +20,23 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
+    # CORS
+    CORS_ORIGINS: str = "*"  # Comma-separated list or "*" for all
+
     # ElevenLabs
     ELEVENLABS_WEBHOOK_SECRET: str = ""
+    ELEVENLABS_AGENT_ID: str = ""
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS_ORIGINS into a list."""
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 @lru_cache()

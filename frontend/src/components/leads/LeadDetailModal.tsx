@@ -30,7 +30,8 @@ const statusLabels: Record<LeadStatus, { label: string; color: string }> = {
 const sourceLabels: Record<string, string> = {
   website: 'Sitio Web',
   whatsapp: 'WhatsApp',
-  elevenlabs: 'Ana (Voz)',
+  elevenlabs: 'ElevenLabs',
+  ana_voice: 'Ana (Voz)',
   referido: 'Referido',
   otro: 'Otro',
 };
@@ -174,10 +175,10 @@ export default function LeadDetailModal({ leadId, onClose, onStatusChange }: Lea
                 <span className="text-sm font-medium text-gray-700">Origen</span>
               </div>
               <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-                lead.source === 'elevenlabs' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                (lead.source === 'elevenlabs' || lead.source === 'ana_voice') ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
               }`}>
-                {lead.source === 'elevenlabs' && <Mic className="w-3 h-3" />}
-                {sourceLabels[lead.source]}
+                {(lead.source === 'elevenlabs' || lead.source === 'ana_voice') && <Mic className="w-3 h-3" />}
+                {sourceLabels[lead.source] || lead.source}
               </span>
             </div>
 

@@ -1,6 +1,6 @@
 // Lead types
 export type LeadStatus = 'nuevo' | 'en_conversacion' | 'potencial' | 'venta_cerrada' | 'perdido';
-export type LeadSource = 'website' | 'whatsapp' | 'elevenlabs' | 'referido' | 'otro';
+export type LeadSource = 'website' | 'whatsapp' | 'elevenlabs' | 'ana_voice' | 'referido' | 'otro';
 
 export interface Lead {
   id: number;

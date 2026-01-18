@@ -19,7 +19,8 @@ class LeadStatus(str, enum.Enum):
 class LeadSource(str, enum.Enum):
     WEBSITE = "website"
     WHATSAPP = "whatsapp"
-    ELEVENLABS = "elevenlabs"  # Ana voice assistant
+    ELEVENLABS = "elevenlabs"  # Legacy
+    ANA_VOICE = "ana_voice"  # Ana voice assistant (ElevenLabs)
     REFERIDO = "referido"
     OTRO = "otro"
 

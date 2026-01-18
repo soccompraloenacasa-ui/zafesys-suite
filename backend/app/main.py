@@ -18,7 +18,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure properly in production
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,5 +41,15 @@ def root():
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
+    """Health check endpoint for Railway."""
     return {"status": "healthy"}
+
+
+@app.get("/api/v1/health")
+def api_health_check():
+    """API health check endpoint."""
+    return {
+        "status": "healthy",
+        "service": settings.APP_NAME,
+        "version": settings.APP_VERSION
+    }

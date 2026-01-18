@@ -12,6 +12,7 @@ const sourceIcons: Record<LeadSource, typeof Phone> = {
   website: Globe,
   whatsapp: MessageCircle,
   elevenlabs: Mic,
+  ana_voice: Mic,
   referido: User,
   otro: User,
 };
@@ -20,6 +21,7 @@ const sourceColors: Record<LeadSource, string> = {
   website: 'bg-blue-100 text-blue-600',
   whatsapp: 'bg-green-100 text-green-600',
   elevenlabs: 'bg-purple-100 text-purple-600',
+  ana_voice: 'bg-purple-100 text-purple-600',
   referido: 'bg-orange-100 text-orange-600',
   otro: 'bg-gray-100 text-gray-600',
 };

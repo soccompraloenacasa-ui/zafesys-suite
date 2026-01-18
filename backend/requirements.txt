@@ -20,3 +20,6 @@ email-validator==2.1.0
 # Utils
 python-dotenv==1.0.0
 httpx==0.26.0
+
+# Production
+gunicorn==21.2.0

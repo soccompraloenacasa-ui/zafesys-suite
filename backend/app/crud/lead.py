@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.crud.base import CRUDBase
-from app.models import Lead, LeadStatus
+from app.models import Lead, LeadStatus, LeadSource
 from app.schemas import LeadCreate, LeadUpdate
 
 
@@ -82,20 +82,22 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
         address: Optional[str] = None,
         product_interest: Optional[str] = None,
         transcript: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        status: LeadStatus = LeadStatus.NUEVO,
+        source: LeadSource = LeadSource.ANA_VOICE,
     ) -> Lead:
-        """Create a lead from ElevenLabs conversation data."""
+        """Create a lead from ElevenLabs/Ana voice conversation data."""
         db_obj = Lead(
             name=name,
             phone=phone,
             email=email,
             address=address,
-            source="elevenlabs",
+            source=source,
             product_interest=product_interest,
             elevenlabs_conversation_id=conversation_id,
             conversation_transcript=transcript,
             notes=notes,
-            status=LeadStatus.NUEVO,
+            status=status,
         )
         db.add(db_obj)
         db.commit()
