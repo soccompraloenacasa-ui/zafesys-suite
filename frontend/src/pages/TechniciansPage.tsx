@@ -58,11 +58,11 @@ export default function TechniciansPage() {
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center">
                   <span className="text-white text-xl font-bold">
-                    {tech.name.charAt(0).toUpperCase()}
+                    {tech.full_name.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{tech.name}</h3>
+                  <h3 className="font-semibold text-gray-900">{tech.full_name}</h3>
                   <span
                     className={`inline-block text-xs px-2 py-0.5 rounded mt-1 ${
                       tech.is_active

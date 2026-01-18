@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Lead, LeadKanban, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken } from '../types';
+import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken } from '../types';
 
 const api = axios.create({
   baseURL: '/api/v1',

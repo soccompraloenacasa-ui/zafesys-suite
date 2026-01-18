@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   DndContext,
-  DragEndEvent,
-  DragOverEvent,
   DragOverlay,
-  DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core';
 import { Plus, RefreshCw } from 'lucide-react';
 import KanbanColumn from '../components/leads/KanbanColumn';
 import LeadCard from '../components/leads/LeadCard';

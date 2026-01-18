@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { installationsApi } from '../services/api';
 import type { Installation } from '../types';
 
@@ -59,6 +59,7 @@ export default function InstallationsPage() {
 
   const getInstallationsForDay = (day: Date) => {
     return installations.filter((inst) => {
+      if (!inst.scheduled_date) return false;
       const instDate = new Date(inst.scheduled_date);
       return (
         instDate.getDate() === day.getDate() &&

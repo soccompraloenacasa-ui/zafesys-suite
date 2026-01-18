@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Package, Calendar, Wrench, TrendingUp, Clock } from 'lucide-react';
+import { Users, Package, Calendar, Wrench, TrendingUp } from 'lucide-react';
 import { leadsApi, installationsApi } from '../services/api';
 
 interface Stats {

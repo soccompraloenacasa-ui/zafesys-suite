@@ -20,7 +20,7 @@ body {
 
 .kanban-card {
   @apply bg-white rounded-lg shadow-sm p-3 mb-2 cursor-grab border border-gray-200;
-  @apply hover:shadow-md hover:border-primary/30 transition-all;
+  @apply hover:shadow-md hover:border-cyan-300 transition-all;
 }
 
 .kanban-card.dragging {
