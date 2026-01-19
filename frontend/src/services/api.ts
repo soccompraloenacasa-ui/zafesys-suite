@@ -110,7 +110,8 @@ export const productsApi = {
 // Technicians
 export const techniciansApi = {
   getAll: async (): Promise<Technician[]> => {
-    const { data } = await api.get('/technicians/');
+    // Get all technicians including inactive ones
+    const { data } = await api.get('/technicians/', { params: { active_only: false } });
     return data;
   },
   getAvailable: async (): Promise<Technician[]> => {
