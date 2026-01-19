@@ -22,7 +22,6 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<ProductInventory[]>([]);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<ProductInventory | null>(null);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
