@@ -7,6 +7,7 @@ import {
   Wrench,
   LogOut,
   Shield,
+  Boxes,
 } from 'lucide-react';
 
 const navigation = [
@@ -14,6 +15,7 @@ const navigation = [
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Productos', href: '/products', icon: Package },
   { name: 'Instalaciones', href: '/installations', icon: Calendar },
+  { name: 'Inventario', href: '/inventory', icon: Boxes },
   { name: 'Técnicos', href: '/technicians', icon: Wrench },
 ];
 
