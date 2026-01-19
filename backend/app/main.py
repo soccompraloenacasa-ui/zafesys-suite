@@ -3,10 +3,13 @@ ZAFESYS Suite - Main Application
 FastAPI backend for smart lock installation management
 """
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.config import settings
 from app.api.routes import api_router
+from app.database import engine
 
 # Configure logging
 logging.basicConfig(
@@ -14,12 +17,47 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+logger = logging.getLogger(__name__)
+
+
+def run_migrations():
+    """Run manual migrations to ensure all columns exist."""
+    migrations = [
+        "ALTER TABLE technicians ADD COLUMN IF NOT EXISTS pin VARCHAR(6);",
+    ]
+    
+    with engine.connect() as conn:
+        for migration in migrations:
+            try:
+                conn.execute(text(migration))
+                conn.commit()
+                logger.info(f"Migration executed: {migration[:50]}...")
+            except Exception as e:
+                logger.warning(f"Migration skipped (may already exist): {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events."""
+    # Startup
+    logger.info("Running database migrations...")
+    try:
+        run_migrations()
+        logger.info("Migrations completed successfully!")
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="API para gestión de ventas, técnicos e instalaciones de cerraduras inteligentes",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS middleware
