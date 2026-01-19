@@ -169,6 +169,91 @@ export const installationsApi = {
   },
 };
 
+// Inventory
+export interface InventorySummary {
+  total_products: number;
+  total_stock_value: number;
+  products_low_stock: number;
+  products_out_of_stock: number;
+  products_slow_moving: number;
+  total_movements_today: number;
+  total_movements_week: number;
+}
+
+export interface ProductInventory {
+  id: number;
+  sku: string;
+  name: string;
+  model: string;
+  stock: number;
+  min_stock_alert: number;
+  price: number;
+  is_active: boolean;
+  stock_status: 'ok' | 'low' | 'critical';
+  total_sold_30d: number;
+  total_sold_7d: number;
+  avg_daily_sales: number;
+  days_of_stock: number | null;
+  alerts: string[];
+}
+
+export interface InventoryMovement {
+  id: number;
+  product_id: number;
+  movement_type: string;
+  quantity: number;
+  stock_before: number;
+  stock_after: number;
+  reference_type: string | null;
+  reference_id: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  product_name: string | null;
+  product_model: string | null;
+}
+
+export const inventoryApi = {
+  getSummary: async (): Promise<InventorySummary> => {
+    const { data } = await api.get('/inventory/summary');
+    return data;
+  },
+  getProducts: async (onlyAlerts: boolean = false): Promise<ProductInventory[]> => {
+    const { data } = await api.get('/inventory/products', {
+      params: { only_alerts: onlyAlerts },
+    });
+    return data;
+  },
+  getMovements: async (productId?: number, limit: number = 50): Promise<InventoryMovement[]> => {
+    const params: Record<string, number> = { limit };
+    if (productId) params.product_id = productId;
+    const { data } = await api.get('/inventory/movements', { params });
+    return data;
+  },
+  createMovement: async (
+    productId: number,
+    movementType: 'entrada' | 'salida' | 'ajuste',
+    quantity: number,
+    notes?: string
+  ): Promise<InventoryMovement> => {
+    const { data } = await api.post('/inventory/movements', {
+      product_id: productId,
+      movement_type: movementType,
+      quantity,
+      notes,
+    });
+    return data;
+  },
+  adjustStock: async (productId: number, newStock: number, reason: string): Promise<InventoryMovement> => {
+    const { data } = await api.post('/inventory/adjust-stock', {
+      product_id: productId,
+      new_stock: newStock,
+      reason,
+    });
+    return data;
+  },
+};
+
 // Technician Mobile App API
 export const techApi = {
   login: async (phone: string, pin: string) => {
