@@ -12,6 +12,8 @@ import {
   CircleDollarSign,
   ToggleLeft,
   ToggleRight,
+  Route,
+  Map,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 
@@ -48,6 +50,76 @@ const paymentLabels: Record<string, { label: string; color: string }> = {
   pagado: { label: 'Pagado', color: 'bg-green-100 text-green-700' },
 };
 
+// Función para optimizar ruta agrupando por ciudad/zona
+function optimizeRoute(installations: TechInstallation[]): TechInstallation[] {
+  // Filtrar solo pendientes (no completadas ni canceladas)
+  const pending = installations.filter(
+    (i) => i.status !== 'completada' && i.status !== 'cancelada'
+  );
+
+  // Agrupar por ciudad
+  const byCity: Record<string, TechInstallation[]> = {};
+  pending.forEach((inst) => {
+    const city = (inst.city || 'Sin ciudad').toLowerCase().trim();
+    if (!byCity[city]) byCity[city] = [];
+    byCity[city].push(inst);
+  });
+
+  // Ordenar cada grupo por hora programada
+  Object.keys(byCity).forEach((city) => {
+    byCity[city].sort((a, b) => {
+      const timeA = a.scheduled_time || '23:59:59';
+      const timeB = b.scheduled_time || '23:59:59';
+      return timeA.localeCompare(timeB);
+    });
+  });
+
+  // Ordenar ciudades por cantidad de instalaciones (más instalaciones primero)
+  const sortedCities = Object.keys(byCity).sort(
+    (a, b) => byCity[b].length - byCity[a].length
+  );
+
+  // Concatenar todas las instalaciones en orden optimizado
+  const optimized: TechInstallation[] = [];
+  sortedCities.forEach((city) => {
+    optimized.push(...byCity[city]);
+  });
+
+  return optimized;
+}
+
+// Generar URL de Google Maps con múltiples paradas
+function generateGoogleMapsRouteUrl(installations: TechInstallation[]): string {
+  if (installations.length === 0) return '';
+
+  // Google Maps permite hasta 10 destinos en la URL
+  const maxWaypoints = 10;
+  const limited = installations.slice(0, maxWaypoints);
+
+  const addresses = limited.map((inst) => {
+    const fullAddress = inst.city
+      ? `${inst.address}, ${inst.city}, Colombia`
+      : `${inst.address}, Colombia`;
+    return encodeURIComponent(fullAddress);
+  });
+
+  if (addresses.length === 1) {
+    // Solo un destino
+    return `https://www.google.com/maps/dir/?api=1&destination=${addresses[0]}&travelmode=driving`;
+  }
+
+  // Múltiples destinos: origin -> waypoints -> destination
+  const origin = addresses[0];
+  const destination = addresses[addresses.length - 1];
+  const waypoints = addresses.slice(1, -1).join('|');
+
+  if (waypoints) {
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
+  } else {
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+  }
+}
+
 export default function TechDashboardPage() {
   const navigate = useNavigate();
   const [installations, setInstallations] = useState<TechInstallation[]>([]);
@@ -55,6 +127,7 @@ export default function TechDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [techName, setTechName] = useState('');
+  const [showRouteView, setShowRouteView] = useState(false);
 
   const techId = parseInt(localStorage.getItem('tech_id') || '0');
 
@@ -126,18 +199,36 @@ export default function TechDashboardPage() {
     window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
+  const openFullRoute = () => {
+    const optimized = optimizeRoute(installations);
+    const url = generateGoogleMapsRouteUrl(optimized);
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
   const today = new Date().toLocaleDateString('es-CO', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
 
-  const pendingCount = installations.filter(
+  const pendingInstallations = installations.filter(
     (i) => i.status !== 'completada' && i.status !== 'cancelada'
-  ).length;
+  );
+  const pendingCount = pendingInstallations.length;
+  const optimizedInstallations = optimizeRoute(installations);
+
+  // Agrupar por ciudad para la vista de ruta
+  const groupedByCity: Record<string, TechInstallation[]> = {};
+  optimizedInstallations.forEach((inst) => {
+    const city = inst.city || 'Sin ciudad';
+    if (!groupedByCity[city]) groupedByCity[city] = [];
+    groupedByCity[city].push(inst);
+  });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-cyan-500 text-white px-4 pt-6 pb-8 safe-area-top">
         <div className="flex items-center justify-between mb-4">
@@ -193,118 +284,242 @@ export default function TechDashboardPage() {
         </div>
       </div>
 
-      {/* Installations List */}
-      <div className="px-4 py-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">
-          Instalaciones de hoy
-        </h2>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+      {/* View Toggle */}
+      {pendingCount > 0 && (
+        <div className="px-4 mt-4">
+          <div className="bg-white rounded-xl shadow-sm p-1 flex">
+            <button
+              onClick={() => setShowRouteView(false)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors ${
+                !showRouteView ? 'bg-cyan-500 text-white' : 'text-gray-600'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span className="text-sm font-medium">Lista</span>
+            </button>
+            <button
+              onClick={() => setShowRouteView(true)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors ${
+                showRouteView ? 'bg-cyan-500 text-white' : 'text-gray-600'
+              }`}
+            >
+              <Route className="w-4 h-4" />
+              <span className="text-sm font-medium">Ruta</span>
+            </button>
           </div>
-        ) : installations.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 text-center">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No tienes instalaciones programadas para hoy</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {installations.map((installation) => {
-              const status = statusLabels[installation.status] || statusLabels.pendiente;
-              const payment = paymentLabels[installation.payment_status] || paymentLabels.pendiente;
+        </div>
+      )}
 
-              return (
-                <div
-                  key={installation.id}
-                  className="bg-white rounded-xl shadow-sm overflow-hidden"
-                >
-                  {/* Main Content - Clickable */}
-                  <div
-                    onClick={() => navigate(`/tech/installation/${installation.id}`)}
-                    className="p-4 cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {installation.lead_name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {installation.product_name}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </div>
+      {/* Installations List or Route View */}
+      <div className="px-4 py-4">
+        {!showRouteView ? (
+          <>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              Instalaciones de hoy
+            </h2>
 
-                    {/* Time & Status */}
-                    <div className="flex items-center gap-2 mb-3">
-                      {installation.scheduled_time && (
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Clock className="w-4 h-4" />
-                          {installation.scheduled_time}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+              </div>
+            ) : installations.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No tienes instalaciones programadas para hoy</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {installations.map((installation) => {
+                  const status = statusLabels[installation.status] || statusLabels.pendiente;
+                  const payment = paymentLabels[installation.payment_status] || paymentLabels.pendiente;
+
+                  return (
+                    <div
+                      key={installation.id}
+                      className="bg-white rounded-xl shadow-sm overflow-hidden"
+                    >
+                      {/* Main Content - Clickable */}
+                      <div
+                        onClick={() => navigate(`/tech/installation/${installation.id}`)}
+                        className="p-4 cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">
+                              {installation.lead_name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {installation.product_name}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400" />
                         </div>
-                      )}
-                      <span className={`text-xs px-2 py-0.5 rounded ${status.color}`}>
-                        {status.label}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded ${payment.color}`}>
-                        {payment.label}
-                      </span>
-                    </div>
 
-                    {/* Address */}
-                    <div className="flex items-start gap-2 text-sm text-gray-600">
-                      <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-2">
-                        {installation.address}
-                        {installation.city && `, ${installation.city}`}
-                      </span>
-                    </div>
+                        {/* Time & Status */}
+                        <div className="flex items-center gap-2 mb-3">
+                          {installation.scheduled_time && (
+                            <div className="flex items-center gap-1 text-sm text-gray-600">
+                              <Clock className="w-4 h-4" />
+                              {installation.scheduled_time}
+                            </div>
+                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded ${status.color}`}>
+                            {status.label}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${payment.color}`}>
+                            {payment.label}
+                          </span>
+                        </div>
 
-                    {/* Price */}
-                    <div className="flex items-center gap-2 mt-2 text-sm">
-                      <CircleDollarSign className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-900">
-                        ${installation.total_price.toLocaleString()}
-                      </span>
-                      {installation.amount_paid > 0 && (
-                        <span className="text-gray-500">
-                          (pagado: ${installation.amount_paid.toLocaleString()})
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                        {/* Address */}
+                        <div className="flex items-start gap-2 text-sm text-gray-600">
+                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <span className="line-clamp-2">
+                            {installation.address}
+                            {installation.city && `, ${installation.city}`}
+                          </span>
+                        </div>
 
-                  {/* Quick Actions */}
-                  <div className="flex border-t border-gray-100">
-                    <button
-                      onClick={() => callPhone(installation.lead_phone)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 text-cyan-600 hover:bg-cyan-50 transition-colors"
-                    >
-                      <Phone className="w-4 h-4" />
-                      <span className="text-sm font-medium">Llamar</span>
-                    </button>
-                    <div className="w-px bg-gray-100" />
-                    <button
-                      onClick={() => openWhatsApp(installation.lead_phone)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 text-green-600 hover:bg-green-50 transition-colors"
-                    >
-                      <Phone className="w-4 h-4" />
-                      <span className="text-sm font-medium">WhatsApp</span>
-                    </button>
-                    <div className="w-px bg-gray-100" />
-                    <button
-                      onClick={() => openMaps(installation.address, installation.city)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 text-blue-600 hover:bg-blue-50 transition-colors"
-                    >
-                      <Navigation className="w-4 h-4" />
-                      <span className="text-sm font-medium">Navegar</span>
-                    </button>
-                  </div>
+                        {/* Price */}
+                        <div className="flex items-center gap-2 mt-2 text-sm">
+                          <CircleDollarSign className="w-4 h-4 text-gray-400" />
+                          <span className="font-medium text-gray-900">
+                            ${installation.total_price.toLocaleString()}
+                          </span>
+                          {installation.amount_paid > 0 && (
+                            <span className="text-gray-500">
+                              (pagado: ${installation.amount_paid.toLocaleString()})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="flex border-t border-gray-100">
+                        <button
+                          onClick={() => callPhone(installation.lead_phone)}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 text-cyan-600 hover:bg-cyan-50 transition-colors"
+                        >
+                          <Phone className="w-4 h-4" />
+                          <span className="text-sm font-medium">Llamar</span>
+                        </button>
+                        <div className="w-px bg-gray-100" />
+                        <button
+                          onClick={() => openWhatsApp(installation.lead_phone)}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 text-green-600 hover:bg-green-50 transition-colors"
+                        >
+                          <Phone className="w-4 h-4" />
+                          <span className="text-sm font-medium">WhatsApp</span>
+                        </button>
+                        <div className="w-px bg-gray-100" />
+                        <button
+                          onClick={() => openMaps(installation.address, installation.city)}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 text-blue-600 hover:bg-blue-50 transition-colors"
+                        >
+                          <Navigation className="w-4 h-4" />
+                          <span className="text-sm font-medium">Navegar</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Route View */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase">
+                Ruta Optimizada
+              </h2>
+              <span className="text-xs text-gray-400">
+                Agrupado por zona
+              </span>
+            </div>
+
+            {/* Open Full Route Button */}
+            {pendingCount > 0 && (
+              <button
+                onClick={openFullRoute}
+                className="w-full mb-4 flex items-center justify-center gap-2 py-3 bg-blue-500 text-white rounded-xl font-medium shadow-sm"
+              >
+                <Map className="w-5 h-5" />
+                Abrir Ruta Completa en Google Maps
+              </button>
+            )}
+
+            {/* Grouped Installations */}
+            {Object.entries(groupedByCity).map(([city, cityInstallations]) => (
+              <div key={city} className="mb-4">
+                {/* City Header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="w-4 h-4 text-cyan-500" />
+                  <h3 className="font-semibold text-gray-700">{city}</h3>
+                  <span className="text-xs text-gray-400">
+                    ({cityInstallations.length} instalacion{cityInstallations.length !== 1 ? 'es' : ''})
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Installations in this city */}
+                <div className="space-y-2 pl-2 border-l-2 border-cyan-200">
+                  {cityInstallations.map((installation, index) => {
+                    const globalIndex = optimizedInstallations.indexOf(installation) + 1;
+                    const status = statusLabels[installation.status] || statusLabels.pendiente;
+
+                    return (
+                      <div
+                        key={installation.id}
+                        onClick={() => navigate(`/tech/installation/${installation.id}`)}
+                        className="bg-white rounded-lg shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Order Number */}
+                          <div className="w-8 h-8 bg-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
+                            {globalIndex}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-gray-900 truncate">
+                                {installation.lead_name}
+                              </h4>
+                              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            </div>
+
+                            <p className="text-sm text-gray-500 truncate">
+                              {installation.address}
+                            </p>
+
+                            <div className="flex items-center gap-2 mt-1">
+                              {installation.scheduled_time && (
+                                <span className="text-xs text-gray-500">
+                                  {installation.scheduled_time}
+                                </span>
+                              )}
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${status.color}`}>
+                                {status.label}
+                              </span>
+                              <span className="text-xs font-medium text-gray-700">
+                                ${installation.total_price.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {pendingCount === 0 && (
+              <div className="bg-white rounded-xl p-8 text-center">
+                <Route className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No hay instalaciones pendientes para optimizar</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
