@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, CircleDollarSign, Calendar, MessageSquare, X } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -11,6 +11,12 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   en_progreso: { label: 'En progreso', color: 'bg-purple-100 text-purple-700' },
   completada: { label: 'Completada', color: 'bg-green-100 text-green-700' },
   cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-700' },
+};
+
+const paymentLabels: Record<string, { label: string; color: string }> = {
+  pendiente: { label: 'Sin pagar', color: 'bg-red-100 text-red-700' },
+  parcial: { label: 'Parcial', color: 'bg-yellow-100 text-yellow-700' },
+  pagado: { label: 'Pagado', color: 'bg-green-100 text-green-700' },
 };
 
 interface InstallationFormData {
@@ -41,6 +47,13 @@ const initialFormData: InstallationFormData = {
   customer_notes: '',
 };
 
+// Extended installation with lead and product details
+interface InstallationDetail extends Installation {
+  lead?: Lead;
+  product?: Product;
+  technician?: Technician;
+}
+
 export default function InstallationsPage() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +64,11 @@ export default function InstallationsPage() {
   const [formData, setFormData] = useState<InstallationFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Detail modal state
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedInstallation, setSelectedInstallation] = useState<InstallationDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Options for selects
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -115,6 +133,57 @@ export default function InstallationsPage() {
 
   const weekDays = getWeekDays();
   const today = new Date();
+
+  // Detail modal handlers
+  const handleOpenDetail = async (installation: Installation) => {
+    setSelectedInstallation(installation as InstallationDetail);
+    setIsDetailModalOpen(true);
+    setLoadingDetail(true);
+
+    try {
+      // Fetch additional details
+      const [leadsData, productsData, techniciansData] = await Promise.all([
+        leadsApi.getAll(),
+        productsApi.getAll(),
+        techniciansApi.getAll(),
+      ]);
+
+      const lead = leadsData.find((l: Lead) => l.id === installation.lead_id);
+      const product = productsData.find((p: Product) => p.id === installation.product_id);
+      const technician = techniciansData.find((t: Technician) => t.id === installation.technician_id);
+
+      setSelectedInstallation({
+        ...installation,
+        lead,
+        product,
+        technician,
+      });
+    } catch (err) {
+      console.error('Error loading installation details:', err);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const handleCloseDetail = () => {
+    setIsDetailModalOpen(false);
+    setSelectedInstallation(null);
+  };
+
+  const openMaps = (address: string, city?: string) => {
+    const fullAddress = city ? `${address}, ${city}` : address;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+    window.open(url, '_blank');
+  };
+
+  const callPhone = (phone: string) => {
+    window.open(`tel:${phone}`, '_self');
+  };
+
+  const openWhatsApp = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+  };
 
   // Modal handlers
   const handleOpenModal = async () => {
@@ -300,7 +369,8 @@ export default function InstallationsPage() {
                       return (
                         <div
                           key={inst.id}
-                          className="p-2 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                          onClick={() => handleOpenDetail(inst)}
+                          className="p-2 bg-gray-50 rounded-lg hover:bg-cyan-50 cursor-pointer transition-colors border border-transparent hover:border-cyan-200"
                         >
                           <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
                             <Clock className="w-3 h-3" />
@@ -328,6 +398,195 @@ export default function InstallationsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Installation Detail Modal */}
+      {isDetailModalOpen && selectedInstallation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-cyan-500 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Instalación #{selectedInstallation.id}</h2>
+                <span className={`text-xs px-2 py-0.5 rounded ${statusLabels[selectedInstallation.status]?.color || 'bg-gray-100'}`}>
+                  {statusLabels[selectedInstallation.status]?.label || selectedInstallation.status}
+                </span>
+              </div>
+              <button
+                onClick={handleCloseDetail}
+                className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingDetail ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                {/* Cliente */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Cliente</h3>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {selectedInstallation.lead?.name || 'Sin nombre'}
+                  </p>
+                  {selectedInstallation.lead?.phone && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <a href={`tel:${selectedInstallation.lead.phone}`} className="text-cyan-600">
+                        {selectedInstallation.lead.phone}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {/* Contact buttons */}
+                  {selectedInstallation.lead?.phone && (
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => callPhone(selectedInstallation.lead!.phone)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-cyan-500 text-white rounded-lg text-sm font-medium"
+                      >
+                        <Phone className="w-4 h-4" />
+                        Llamar
+                      </button>
+                      <button
+                        onClick={() => openWhatsApp(selectedInstallation.lead!.phone)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-500 text-white rounded-lg text-sm font-medium"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        WhatsApp
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fecha y Hora */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Programación</h3>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-900">
+                      {selectedInstallation.scheduled_date 
+                        ? new Date(selectedInstallation.scheduled_date).toLocaleDateString('es-CO', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })
+                        : 'Sin fecha'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Clock className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-900">
+                      {selectedInstallation.scheduled_time || 'Sin hora'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Dirección */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Dirección</h3>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-gray-900">{selectedInstallation.address}</p>
+                      {selectedInstallation.city && (
+                        <p className="text-gray-500 text-sm">{selectedInstallation.city}</p>
+                      )}
+                      {selectedInstallation.address_notes && (
+                        <p className="text-cyan-600 text-sm mt-1">{selectedInstallation.address_notes}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openMaps(selectedInstallation.address, selectedInstallation.city || undefined)}
+                    className="w-full mt-3 flex items-center justify-center gap-2 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    Ver en Google Maps
+                  </button>
+                </div>
+
+                {/* Producto */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Producto</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
+                      <Package className="w-6 h-6 text-cyan-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {selectedInstallation.product?.name || `Producto #${selectedInstallation.product_id}`}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {selectedInstallation.product?.model || ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Técnico */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Técnico Asignado</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <User className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {selectedInstallation.technician?.full_name || 'Sin asignar'}
+                      </p>
+                      {selectedInstallation.technician?.phone && (
+                        <p className="text-sm text-gray-500">
+                          {selectedInstallation.technician.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pago */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Pago</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-500">Total</span>
+                    <span className="text-xl font-bold text-gray-900">
+                      ${selectedInstallation.total_price?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-500">Pagado</span>
+                    <span className="text-green-600 font-medium">
+                      ${selectedInstallation.amount_paid?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-gray-700 font-medium">Por cobrar</span>
+                    <span className="text-cyan-600 font-bold">
+                      ${((selectedInstallation.total_price || 0) - (selectedInstallation.amount_paid || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <span className={`text-xs px-2 py-1 rounded ${paymentLabels[selectedInstallation.payment_status]?.color || 'bg-gray-100'}`}>
+                      {paymentLabels[selectedInstallation.payment_status]?.label || selectedInstallation.payment_status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Notas */}
+                {selectedInstallation.customer_notes && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-yellow-800 mb-1">Notas del cliente</h3>
+                    <p className="text-yellow-700">{selectedInstallation.customer_notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
