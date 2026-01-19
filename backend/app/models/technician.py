@@ -26,6 +26,9 @@ class Technician(Base):
     zone = Column(String(100), nullable=True)  # Area they cover
     specialties = Column(Text, nullable=True)  # Types of locks they can install
 
+    # Auth for mobile app (simple PIN)
+    pin = Column(String(6), nullable=True)  # 4-6 digit PIN for tech app login
+
     # Status
     is_available = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)

@@ -1,0 +1,27 @@
+{
+  "name": "ZAFESYS - App de Tecnicos",
+  "short_name": "ZAFESYS Tech",
+  "description": "App para tecnicos instaladores de ZAFESYS",
+  "start_url": "/tech/login",
+  "scope": "/tech/",
+  "display": "standalone",
+  "background_color": "#06b6d4",
+  "theme_color": "#06b6d4",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "es-CO"
+}

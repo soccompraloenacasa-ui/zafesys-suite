@@ -168,4 +168,58 @@ export const installationsApi = {
   },
 };
 
+// Technician Mobile App API
+export const techApi = {
+  login: async (phone: string, pin: string) => {
+    const { data } = await api.post('/tech/login', { phone, pin });
+    return data;
+  },
+  getMyInstallations: async (technicianId: number, date?: string) => {
+    const params: Record<string, string | number> = { technician_id: technicianId };
+    if (date) params.target_date = date;
+    const { data } = await api.get('/tech/my-installations', { params });
+    return data;
+  },
+  getInstallation: async (installationId: number, technicianId: number) => {
+    const { data } = await api.get(`/tech/installations/${installationId}`, {
+      params: { technician_id: technicianId },
+    });
+    return data;
+  },
+  updateStatus: async (installationId: number, technicianId: number, status: string) => {
+    const { data } = await api.patch(`/tech/installations/${installationId}/status`,
+      { status },
+      { params: { technician_id: technicianId } }
+    );
+    return data;
+  },
+  confirmPayment: async (installationId: number, technicianId: number, amount: number, method: string) => {
+    const { data } = await api.post(`/tech/installations/${installationId}/confirm-payment`,
+      { amount, method },
+      { params: { technician_id: technicianId } }
+    );
+    return data;
+  },
+  completeInstallation: async (installationId: number, technicianId: number, notes?: string, photoUrl?: string) => {
+    const { data } = await api.post(`/tech/installations/${installationId}/complete`,
+      { technician_notes: notes, photo_proof_url: photoUrl },
+      { params: { technician_id: technicianId } }
+    );
+    return data;
+  },
+  updateAvailability: async (technicianId: number, isAvailable: boolean) => {
+    const { data } = await api.patch('/tech/availability',
+      { is_available: isAvailable },
+      { params: { technician_id: technicianId } }
+    );
+    return data;
+  },
+  getProfile: async (technicianId: number) => {
+    const { data } = await api.get('/tech/profile', {
+      params: { technician_id: technicianId },
+    });
+    return data;
+  },
+};
+
 export default api;

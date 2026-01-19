@@ -2,7 +2,7 @@
 ZAFESYS Suite - API Routes
 """
 from fastapi import APIRouter
-from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin
+from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app
 
 api_router = APIRouter()
 
@@ -20,3 +20,6 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"]
 
 # Admin routes (no auth for initial setup)
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
+
+# Technician Mobile App routes (no admin auth - uses own PIN auth)
+api_router.include_router(tech_app.router, prefix="/tech", tags=["Technician App"])
