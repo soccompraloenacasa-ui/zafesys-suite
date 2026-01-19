@@ -24,6 +24,24 @@ def run_migrations():
     """Run manual migrations to ensure all columns exist."""
     migrations = [
         "ALTER TABLE technicians ADD COLUMN IF NOT EXISTS pin VARCHAR(6);",
+        # Inventory movements table
+        """
+        CREATE TABLE IF NOT EXISTS inventory_movements (
+            id SERIAL PRIMARY KEY,
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            movement_type VARCHAR(20) NOT NULL,
+            quantity INTEGER NOT NULL,
+            stock_before INTEGER NOT NULL,
+            stock_after INTEGER NOT NULL,
+            reference_type VARCHAR(50),
+            reference_id INTEGER,
+            notes TEXT,
+            created_by VARCHAR(100),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_inventory_movements_product_id ON inventory_movements(product_id);",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at ON inventory_movements(created_at);",
     ]
     
     with engine.connect() as conn:
