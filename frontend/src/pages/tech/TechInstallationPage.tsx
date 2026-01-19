@@ -15,9 +15,13 @@ import {
   Loader2,
   CreditCard,
   Banknote,
+  Send,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 import Modal from '../../components/common/Modal';
+
+// Número de WhatsApp del admin para recibir notificaciones
+const ADMIN_WHATSAPP = '573114600603'; // Cambiar por el número del admin
 
 interface TechInstallation {
   id: number;
@@ -63,6 +67,7 @@ export default function TechInstallationPage() {
   const [techNotes, setTechNotes] = useState('');
 
   const techId = parseInt(localStorage.getItem('tech_id') || '0');
+  const techName = localStorage.getItem('tech_name') || 'Técnico';
 
   useEffect(() => {
     if (!techId || !id) {
@@ -128,6 +133,30 @@ export default function TechInstallationPage() {
     }
   };
 
+  const sendCompletionWhatsApp = () => {
+    if (!installation) return;
+
+    const fullAddress = installation.city
+      ? `${installation.address}, ${installation.city}`
+      : installation.address;
+
+    const message = `✅ *INSTALACIÓN EXITOSA*
+
+👨‍🔧 *Técnico:* ${techName}
+👤 *Cliente:* ${installation.lead_name}
+📱 *Tel Cliente:* ${installation.lead_phone}
+🔐 *Producto:* ${installation.product_name} (${installation.product_model})
+📍 *Dirección:* ${fullAddress}
+💰 *Total:* $${installation.total_price.toLocaleString()}
+💳 *Pagado:* $${installation.amount_paid.toLocaleString()}
+${techNotes ? `📝 *Notas:* ${techNotes}` : ''}
+
+🕐 ${new Date().toLocaleString('es-CO')}`;
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodedMessage}`, '_blank');
+  };
+
   const handleComplete = async () => {
     setUpdating(true);
     try {
@@ -136,6 +165,9 @@ export default function TechInstallationPage() {
         prev ? { ...prev, status: 'completada' } : null
       );
       setShowCompleteModal(false);
+      
+      // Send WhatsApp notification to admin
+      sendCompletionWhatsApp();
     } catch (error) {
       console.error('Error completing installation:', error);
     } finally {
@@ -202,6 +234,17 @@ export default function TechInstallationPage() {
 
       {/* Content */}
       <div className="px-4 py-4 space-y-4">
+        {/* Success Banner for Completed */}
+        {isCompleted && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+            <CheckCircle className="w-8 h-8 text-green-500" />
+            <div>
+              <p className="font-semibold text-green-800">¡Instalación Completada!</p>
+              <p className="text-sm text-green-600">Buen trabajo 🎉</p>
+            </div>
+          </div>
+        )}
+
         {/* Customer Info */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
@@ -312,7 +355,7 @@ export default function TechInstallationPage() {
             </div>
           )}
 
-          {!isPaid && (
+          {!isPaid && !isCompleted && (
             <button
               onClick={() => setShowPaymentModal(true)}
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-500 text-white rounded-lg font-medium"
@@ -330,13 +373,24 @@ export default function TechInstallationPage() {
             <p className="text-yellow-700">{installation.customer_notes}</p>
           </div>
         )}
+
+        {/* Re-send notification button for completed installations */}
+        {isCompleted && (
+          <button
+            onClick={sendCompletionWhatsApp}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-medium"
+          >
+            <Send className="w-5 h-5" />
+            Reenviar Notificación al Admin
+          </button>
+        )}
       </div>
 
       {/* Bottom Action Bar */}
       {!isCompleted && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 safe-area-bottom">
           <div className="flex gap-2">
-            {installation.status === 'programada' && (
+            {(installation.status === 'pendiente' || installation.status === 'programada') && (
               <button
                 onClick={() => handleStatusUpdate('en_camino')}
                 disabled={updating}
@@ -456,7 +510,7 @@ export default function TechInstallationPage() {
         isOpen={showCompleteModal}
         onClose={() => setShowCompleteModal(false)}
         title="Completar Instalacion"
-        subtitle="Marca la instalacion como terminada"
+        subtitle="Se notificará al administrador por WhatsApp"
         size="sm"
         footer={
           <>
@@ -469,24 +523,39 @@ export default function TechInstallationPage() {
             <button
               onClick={handleComplete}
               disabled={updating}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50"
+              className="px-4 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
             >
-              {updating ? 'Guardando...' : 'Completar'}
+              {updating ? (
+                'Completando...'
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Completar y Notificar
+                </>
+              )}
             </button>
           </>
         }
       >
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Notas de la Instalacion (opcional)
-          </label>
-          <textarea
-            value={techNotes}
-            onChange={(e) => setTechNotes(e.target.value)}
-            placeholder="Ej: Se instalo sin problemas, puerta de madera..."
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
-          />
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <p className="text-sm text-green-700">
+              Al completar, se enviará un mensaje de WhatsApp con el resumen de la instalación al administrador.
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notas de la Instalacion (opcional)
+            </label>
+            <textarea
+              value={techNotes}
+              onChange={(e) => setTechNotes(e.target.value)}
+              placeholder="Ej: Se instalo sin problemas, puerta de madera..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
+            />
+          </div>
         </div>
       </Modal>
     </div>
