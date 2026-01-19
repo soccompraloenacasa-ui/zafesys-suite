@@ -21,7 +21,7 @@ import { techApi } from '../../services/api';
 import Modal from '../../components/common/Modal';
 
 // Número de WhatsApp del admin para recibir notificaciones
-const ADMIN_WHATSAPP = '573114600603'; // Cambiar por el número del admin
+const ADMIN_WHATSAPP = '573011917572';
 
 interface TechInstallation {
   id: number;
