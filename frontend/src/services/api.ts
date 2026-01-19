@@ -117,10 +117,25 @@ export const techniciansApi = {
     const { data } = await api.get('/technicians/available');
     return data;
   },
+  getById: async (id: number): Promise<Technician> => {
+    const { data } = await api.get(`/technicians/${id}`);
+    return data;
+  },
+  create: async (technician: Partial<Technician>): Promise<Technician> => {
+    const { data } = await api.post('/technicians/', technician);
+    return data;
+  },
+  update: async (id: number, technician: Partial<Technician>): Promise<Technician> => {
+    const { data } = await api.put(`/technicians/${id}`, technician);
+    return data;
+  },
   getSchedule: async (id: number, date?: string) => {
     const params = date ? { target_date: date } : {};
     const { data } = await api.get(`/technicians/${id}/schedule`, { params });
     return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/technicians/${id}`);
   },
 };
 

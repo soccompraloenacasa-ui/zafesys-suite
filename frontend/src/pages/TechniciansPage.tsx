@@ -2,36 +2,108 @@ import { useState, useEffect } from 'react';
 import { Plus, Wrench, Phone, Mail, MapPin, Star, Calendar } from 'lucide-react';
 import { techniciansApi } from '../services/api';
 import type { Technician } from '../types';
+import Modal from '../components/common/Modal';
+
+interface TechnicianFormData {
+  full_name: string;
+  phone: string;
+  email: string;
+  document_id: string;
+  zone: string;
+  specialties: string;
+}
+
+const initialFormData: TechnicianFormData = {
+  full_name: '',
+  phone: '',
+  email: '',
+  document_id: '',
+  zone: '',
+  specialties: '',
+};
 
 export default function TechniciansPage() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState<TechnicianFormData>(initialFormData);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTechnicians = async () => {
+    try {
+      const data = await techniciansApi.getAll();
+      setTechnicians(data);
+    } catch (error) {
+      console.error('Error fetching technicians:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchTechnicians = async () => {
-      try {
-        const data = await techniciansApi.getAll();
-        setTechnicians(data);
-      } catch (error) {
-        console.error('Error fetching technicians:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchTechnicians();
   }, []);
+
+  const handleOpenModal = () => {
+    setFormData(initialFormData);
+    setError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData(initialFormData);
+    setError(null);
+  };
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+
+    try {
+      const technicianData = {
+        full_name: formData.full_name,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        document_id: formData.document_id || undefined,
+        zone: formData.zone || undefined,
+        specialties: formData.specialties || undefined,
+      };
+
+      await techniciansApi.create(technicianData);
+      handleCloseModal();
+      fetchTechnicians();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setError(error.response?.data?.detail || 'Error al crear el tecnico');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Técnicos</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Tecnicos</h1>
           <p className="text-gray-500">Gestiona tu equipo de instaladores</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors">
+        <button
+          onClick={handleOpenModal}
+          className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
+        >
           <Plus className="w-4 h-4" />
-          Nuevo Técnico
+          Nuevo Tecnico
         </button>
       </div>
 
@@ -43,9 +115,12 @@ export default function TechniciansPage() {
       ) : technicians.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <Wrench className="w-12 h-12 mb-3 text-gray-300" />
-          <p>No hay técnicos registrados</p>
-          <button className="mt-4 text-cyan-600 hover:underline">
-            Agregar primer técnico
+          <p>No hay tecnicos registrados</p>
+          <button
+            onClick={handleOpenModal}
+            className="mt-4 text-cyan-600 hover:underline"
+          >
+            Agregar primer tecnico
           </button>
         </div>
       ) : (
@@ -115,6 +190,126 @@ export default function TechniciansPage() {
           ))}
         </div>
       )}
+
+      {/* Create Technician Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title="Nuevo Tecnico"
+        subtitle="Agrega un instalador al equipo"
+        size="md"
+        footer={
+          <>
+            <button
+              onClick={handleCloseModal}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !formData.full_name || !formData.phone}
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Guardando...' : 'Crear Tecnico'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre Completo *
+            </label>
+            <input
+              type="text"
+              name="full_name"
+              value={formData.full_name}
+              onChange={handleInputChange}
+              placeholder="Ej: Carlos Martinez"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Telefono WhatsApp *
+            </label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              placeholder="Ej: +573001234567"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="tecnico@ejemplo.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Cedula / Documento
+            </label>
+            <input
+              type="text"
+              name="document_id"
+              value={formData.document_id}
+              onChange={handleInputChange}
+              placeholder="Ej: 1234567890"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Zona de Cobertura
+            </label>
+            <input
+              type="text"
+              name="zone"
+              value={formData.zone}
+              onChange={handleInputChange}
+              placeholder="Ej: Bogota Norte, Chapinero"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Especialidades
+            </label>
+            <textarea
+              name="specialties"
+              value={formData.specialties}
+              onChange={handleInputChange}
+              rows={2}
+              placeholder="Cerraduras biometricas, cerraduras WiFi, puertas de madera..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
