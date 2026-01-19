@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -14,6 +15,14 @@ interface MapLocation {
 interface RouteMapProps {
   locations: MapLocation[];
   height?: string;
+}
+
+// Declarar tipos globales para Google Maps
+declare global {
+  interface Window {
+    google: any;
+    initGoogleMaps: () => void;
+  }
 }
 
 // Cargar script de Google Maps
@@ -45,8 +54,8 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
   const mapRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const directionsRendererRef = useRef<any>(null);
 
   useEffect(() => {
     if (locations.length === 0) {
@@ -61,6 +70,8 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
         await loadGoogleMapsScript();
 
         if (!isMounted || !mapRef.current) return;
+
+        const google = window.google;
 
         // Crear mapa centrado en Medellín
         const map = new google.maps.Map(mapRef.current, {
@@ -94,7 +105,7 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
         directionsRendererRef.current = directionsRenderer;
 
         // Geocodificar direcciones y mostrar ruta
-        await displayRoute(map, directionsRenderer, locations);
+        await displayRoute(google, map, directionsRenderer, locations);
 
         setLoading(false);
       } catch (err) {
@@ -114,8 +125,9 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
   }, [locations]);
 
   async function displayRoute(
-    map: google.maps.Map,
-    directionsRenderer: google.maps.DirectionsRenderer,
+    google: any,
+    map: any,
+    directionsRenderer: any,
     locs: MapLocation[]
   ) {
     if (locs.length === 0) return;
@@ -131,22 +143,28 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
           : `${loc.address}, Medellín, Colombia`;
 
         try {
-          const result = await geocoder.geocode({ address: fullAddress });
-          if (result.results[0]) {
-            return {
-              ...loc,
-              position: result.results[0].geometry.location,
-            };
-          }
-        } catch (e) {
-          console.error(`Error geocoding ${fullAddress}:`, e);
+          const result = await new Promise<any>((resolve, reject) => {
+            geocoder.geocode({ address: fullAddress }, (results: any, status: string) => {
+              if (status === 'OK' && results && results[0]) {
+                resolve({ results });
+              } else {
+                reject(new Error('Geocode failed'));
+              }
+            });
+          });
+          return {
+            ...loc,
+            position: result.results[0].geometry.location,
+          };
+        } catch {
+          console.error(`Error geocoding ${fullAddress}`);
+          return null;
         }
-        return null;
       })
     );
 
     const validLocations = geocodedLocations.filter(
-      (loc): loc is MapLocation & { position: google.maps.LatLng } => loc !== null
+      (loc): loc is MapLocation & { position: any } => loc !== null
     );
 
     if (validLocations.length === 0) {
@@ -205,18 +223,27 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
       }));
 
       try {
-        const result = await directionsService.route({
-          origin,
-          destination,
-          waypoints,
-          travelMode: google.maps.TravelMode.DRIVING,
-          optimizeWaypoints: false, // Ya están optimizados
-        });
-
-        directionsRenderer.setDirections(result);
-      } catch (e) {
-        console.error('Error getting directions:', e);
-        // Si falla la ruta, al menos ajustar el zoom a los marcadores
+        directionsService.route(
+          {
+            origin,
+            destination,
+            waypoints,
+            travelMode: google.maps.TravelMode.DRIVING,
+            optimizeWaypoints: false, // Ya están optimizados
+          },
+          (result: any, status: string) => {
+            if (status === 'OK' && result) {
+              directionsRenderer.setDirections(result);
+            } else {
+              // Si falla la ruta, ajustar zoom a los marcadores
+              const bounds = new google.maps.LatLngBounds();
+              validLocations.forEach((loc) => bounds.extend(loc.position));
+              map.fitBounds(bounds);
+            }
+          }
+        );
+      } catch {
+        console.error('Error getting directions');
         const bounds = new google.maps.LatLngBounds();
         validLocations.forEach((loc) => bounds.extend(loc.position));
         map.fitBounds(bounds);
