@@ -2,16 +2,13 @@
 ZAFESYS Suite - Webhook Routes
 ElevenLabs conversation webhook to create leads automatically
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app import crud
-from app.schemas import ElevenLabsWebhookPayload, LeadResponse
+from app.schemas import ElevenLabsWebhookPayload
 from app.models.lead import LeadStatus, LeadSource
 from app.config import settings
-import hmac
-import hashlib
 import json
 import re
 import logging
@@ -33,22 +30,17 @@ PRODUCT_KEYWORDS = {
 }
 
 
-def verify_elevenlabs_signature(payload: bytes, signature: str, secret: str) -> bool:
-    """Verify ElevenLabs webhook signature."""
-    if not secret:
-        return True
-
-    expected = hmac.new(
-        secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
-
-    return hmac.compare_digest(expected, signature)
-
-
 def format_transcript(transcript_data) -> str:
-    """Convert transcript from various formats to a readable string."""
+    """
+    Convert transcript from ElevenLabs format to readable string.
+
+    ElevenLabs transcript format:
+    [
+        {"role": "agent", "message": "Hola...", "time_in_call_secs": 0.5, ...},
+        {"role": "user", "message": "Hola...", "time_in_call_secs": 2.1, ...},
+        ...
+    ]
+    """
     if transcript_data is None:
         return ""
 
@@ -60,9 +52,11 @@ def format_transcript(transcript_data) -> str:
         for msg in transcript_data:
             if isinstance(msg, dict):
                 role = msg.get("role", "unknown")
-                message = msg.get("message", msg.get("text", ""))
-                speaker = "Ana" if role == "agent" else "Cliente"
-                lines.append(f"{speaker}: {message}")
+                # Try different message field names
+                message = msg.get("message") or msg.get("text") or msg.get("content") or ""
+                if message:
+                    speaker = "Ana" if role == "agent" else "Cliente"
+                    lines.append(f"{speaker}: {message}")
             elif isinstance(msg, str):
                 lines.append(msg)
         return "\n".join(lines)
@@ -165,16 +159,19 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         "notes": None,
     }
 
-    if payload.analysis:
-        result["name"] = payload.analysis.customer_name
-        result["phone"] = payload.analysis.customer_phone
-        result["email"] = payload.analysis.customer_email
-        result["address"] = payload.analysis.customer_address
-        result["product_interest"] = payload.analysis.product_interest
-        result["interest_level"] = payload.analysis.interest_level or "medium"
-        result["notes"] = payload.analysis.summary
+    # Check analysis data
+    analysis = payload.get_analysis()
+    if analysis:
+        result["name"] = analysis.customer_name
+        result["phone"] = analysis.customer_phone
+        result["email"] = analysis.customer_email
+        result["address"] = analysis.customer_address
+        result["product_interest"] = analysis.product_interest
+        result["interest_level"] = analysis.interest_level or "medium"
+        result["notes"] = analysis.summary
 
-    collected = payload.collected_data or payload.data_collection or {}
+    # Check collected_data
+    collected = payload.get_collected_data() or {}
     if collected:
         result["name"] = result["name"] or collected.get("customer_name") or collected.get("name")
         result["phone"] = result["phone"] or collected.get("customer_phone") or collected.get("phone")
@@ -182,14 +179,9 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         result["address"] = result["address"] or collected.get("customer_address") or collected.get("address")
         result["product_interest"] = result["product_interest"] or collected.get("product_interest") or collected.get("product")
 
-    result["name"] = result["name"] or payload.customer_name
-    result["phone"] = result["phone"] or payload.customer_phone
-    result["email"] = result["email"] or payload.customer_email
-    result["address"] = result["address"] or payload.customer_address
-    result["product_interest"] = result["product_interest"] or payload.product_interest
-    result["notes"] = result["notes"] or payload.notes
-
-    transcript_text = format_transcript(payload.transcript)
+    # Analyze transcript text
+    transcript_data = payload.get_transcript()
+    transcript_text = format_transcript(transcript_data)
 
     if transcript_text:
         if not result["phone"]:
@@ -225,6 +217,18 @@ async def elevenlabs_conversation_webhook(
 ):
     """
     Webhook endpoint for ElevenLabs conversation data.
+
+    Expected payload structure:
+    {
+        "type": "post_call_transcription",
+        "event_timestamp": 1768821764,
+        "data": {
+            "agent_id": "...",
+            "conversation_id": "...",
+            "status": "done",
+            "transcript": [{"role": "agent", "message": "..."}, ...]
+        }
+    }
     """
     # === LOG EVERYTHING ===
     logger.info("=" * 60)
@@ -239,55 +243,61 @@ async def elevenlabs_conversation_webhook(
     body = await request.body()
     body_str = body.decode('utf-8', errors='replace')
     logger.info(f"Body length: {len(body_str)} bytes")
-    logger.info(f"Body: {body_str[:2000]}...")  # First 2000 chars
-
-    # Log query params
-    logger.info(f"Query params: {dict(request.query_params)}")
-    logger.info(f"URL: {request.url}")
-    logger.info(f"Method: {request.method}")
-
-    # === TEMPORARILY SKIP SIGNATURE VALIDATION ===
-    # TODO: Re-enable after debugging
-    logger.info("SIGNATURE VALIDATION SKIPPED FOR DEBUGGING")
+    logger.info(f"Body: {body_str[:2000]}...")
 
     # Parse payload
     try:
         data = json.loads(body)
-        logger.info(f"Parsed JSON keys: {list(data.keys())}")
+        logger.info(f"Parsed JSON - type: {data.get('type')}")
+        logger.info(f"Parsed JSON - top level keys: {list(data.keys())}")
+
+        if 'data' in data:
+            logger.info(f"Parsed JSON - data keys: {list(data['data'].keys())}")
+
         payload = ElevenLabsWebhookPayload(**data)
-        logger.info(f"Conversation ID: {payload.conversation_id}")
+
+        # Use getter methods to extract data from nested structure
+        conversation_id = payload.get_conversation_id()
+        logger.info(f"Conversation ID: {conversation_id}")
+        logger.info(f"Event type: {payload.type}")
+        logger.info(f"Status: {payload.get_status()}")
+
     except Exception as e:
         logger.error(f"Failed to parse webhook payload: {e}")
-        logger.error(f"Raw body was: {body_str[:500]}")
-        # Return 200 anyway to acknowledge receipt
+        logger.error(f"Raw body was: {body_str[:1000]}")
         return {"status": "error", "message": f"Parse error: {str(e)}", "received": True}
 
+    # Get conversation_id
+    conversation_id = payload.get_conversation_id()
+    if not conversation_id:
+        logger.error("No conversation_id found in payload")
+        return {"status": "error", "message": "No conversation_id", "received": True}
+
     # Check if conversation already processed
-    existing = crud.lead.get_by_elevenlabs_conversation(
-        db, conversation_id=payload.conversation_id
-    )
+    existing = crud.lead.get_by_elevenlabs_conversation(db, conversation_id=conversation_id)
     if existing:
-        logger.info(f"Conversation {payload.conversation_id} already processed, lead ID: {existing.id}")
+        logger.info(f"Conversation {conversation_id} already processed, lead ID: {existing.id}")
         return {"status": "duplicate", "lead_id": existing.id}
 
     # Analyze conversation
     analysis = analyze_conversation(payload)
-    transcript_text = format_transcript(payload.transcript)
+    transcript_text = format_transcript(payload.get_transcript())
 
     logger.info(f"Analysis result: {analysis}")
+    logger.info(f"Transcript length: {len(transcript_text)} chars")
 
     # Check if we have minimum required data
     if not analysis["phone"] and not analysis["name"]:
-        logger.warning(f"No customer data extracted from conversation {payload.conversation_id}")
+        logger.warning(f"No customer data extracted from conversation {conversation_id}")
         analysis["name"] = "Cliente sin identificar"
-        analysis["phone"] = f"pendiente-{payload.conversation_id[:8]}"
+        analysis["phone"] = f"pendiente-{conversation_id[:8]}"
 
     # Check if lead with this phone already exists
     if analysis["phone"] and not analysis["phone"].startswith("pendiente"):
         existing_phone = crud.lead.get_by_phone(db, phone=analysis["phone"])
         if existing_phone:
             logger.info(f"Updating existing lead {existing_phone.id} with conversation data")
-            existing_phone.elevenlabs_conversation_id = payload.conversation_id
+            existing_phone.elevenlabs_conversation_id = conversation_id
             existing_phone.conversation_transcript = transcript_text
             if analysis["product_interest"]:
                 existing_phone.product_interest = analysis["product_interest"]
@@ -307,9 +317,9 @@ async def elevenlabs_conversation_webhook(
     # Create new lead
     lead = crud.lead.create_from_elevenlabs(
         db,
-        conversation_id=payload.conversation_id,
+        conversation_id=conversation_id,
         name=analysis["name"] or "Cliente de Ana",
-        phone=analysis["phone"] or f"pendiente-{payload.conversation_id[:8]}",
+        phone=analysis["phone"] or f"pendiente-{conversation_id[:8]}",
         email=analysis["email"],
         address=analysis["address"],
         product_interest=analysis["product_interest"],
@@ -319,16 +329,14 @@ async def elevenlabs_conversation_webhook(
         source=LeadSource.ANA_VOICE,
     )
 
-    logger.info(f"Created new lead {lead.id} from conversation {payload.conversation_id}")
+    logger.info(f"Created new lead {lead.id} from conversation {conversation_id}")
     logger.info("=" * 60)
 
     return {"status": "created", "lead_id": lead.id}
 
 
 @router.post("/elevenlabs/test")
-async def test_elevenlabs_webhook(
-    db: Session = Depends(get_db)
-):
+async def test_elevenlabs_webhook(db: Session = Depends(get_db)):
     """Test endpoint to simulate ElevenLabs webhook."""
     import uuid
 
@@ -362,5 +370,11 @@ async def elevenlabs_webhook_status():
         "secret_configured": bool(settings.ELEVENLABS_WEBHOOK_SECRET),
         "agent_id_configured": bool(settings.ELEVENLABS_AGENT_ID),
         "status": "ready",
-        "signature_validation": "DISABLED FOR DEBUGGING"
+        "expected_payload": {
+            "type": "post_call_transcription",
+            "data": {
+                "conversation_id": "required",
+                "transcript": "array of {role, message}"
+            }
+        }
     }
