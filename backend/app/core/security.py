@@ -2,7 +2,7 @@
 ZAFESYS Suite - Security / Authentication
 """
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.config import settings
@@ -23,14 +23,24 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    subject: Union[str, int],
+    role: Optional[str] = None,
+    expires_delta: Optional[timedelta] = None
+) -> str:
     """Create a JWT access token."""
-    to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+
+    to_encode = {
+        "sub": str(subject),  # JWT subject must be string
+        "exp": expire,
+    }
+
+    if role:
+        to_encode["role"] = role
 
     logger.info(f"Creating token with payload: {to_encode}")
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -41,8 +51,6 @@ def decode_access_token(token: str) -> Optional[dict]:
     """Decode and verify a JWT access token."""
     try:
         logger.info(f"Decoding token: {token[:50]}...")
-        logger.info(f"Using SECRET_KEY: {settings.SECRET_KEY[:10]}...")
-        logger.info(f"Using ALGORITHM: {settings.ALGORITHM}")
 
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         logger.info(f"Decoded payload: {payload}")
