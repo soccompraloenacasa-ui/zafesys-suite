@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, CircleDollarSign, Calendar, MessageSquare, X } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
