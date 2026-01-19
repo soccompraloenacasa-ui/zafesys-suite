@@ -16,6 +16,7 @@ import {
   Map,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
+import RouteMap from '../../components/tech/RouteMap';
 
 interface TechInstallation {
   id: number;
@@ -218,6 +219,15 @@ export default function TechDashboardPage() {
   );
   const pendingCount = pendingInstallations.length;
   const optimizedInstallations = optimizeRoute(installations);
+
+  // Preparar datos para el mapa
+  const mapLocations = optimizedInstallations.map((inst, index) => ({
+    id: inst.id,
+    address: inst.address,
+    city: inst.city,
+    name: inst.lead_name,
+    order: index + 1,
+  }));
 
   // Agrupar por ciudad para la vista de ruta
   const groupedByCity: Record<string, TechInstallation[]> = {};
@@ -438,6 +448,13 @@ export default function TechDashboardPage() {
               </span>
             </div>
 
+            {/* Interactive Map */}
+            {pendingCount > 0 && (
+              <div className="mb-4">
+                <RouteMap locations={mapLocations} height="250px" />
+              </div>
+            )}
+
             {/* Open Full Route Button */}
             {pendingCount > 0 && (
               <button
@@ -445,7 +462,7 @@ export default function TechDashboardPage() {
                 className="w-full mb-4 flex items-center justify-center gap-2 py-3 bg-blue-500 text-white rounded-xl font-medium shadow-sm"
               >
                 <Map className="w-5 h-5" />
-                Abrir Ruta Completa en Google Maps
+                Iniciar Navegación en Google Maps
               </button>
             )}
 
@@ -463,7 +480,7 @@ export default function TechDashboardPage() {
 
                 {/* Installations in this city */}
                 <div className="space-y-2 pl-2 border-l-2 border-cyan-200">
-                  {cityInstallations.map((installation, index) => {
+                  {cityInstallations.map((installation) => {
                     const globalIndex = optimizedInstallations.indexOf(installation) + 1;
                     const status = statusLabels[installation.status] || statusLabels.pendiente;
 
