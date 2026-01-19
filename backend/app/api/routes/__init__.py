@@ -3,6 +3,7 @@ ZAFESYS Suite - API Routes
 """
 from fastapi import APIRouter
 from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app
+from app.api import inventory
 
 api_router = APIRouter()
 
@@ -14,6 +15,9 @@ api_router.include_router(leads.router, prefix="/leads", tags=["Leads"])
 api_router.include_router(products.router, prefix="/products", tags=["Products"])
 api_router.include_router(technicians.router, prefix="/technicians", tags=["Technicians"])
 api_router.include_router(installations.router, prefix="/installations", tags=["Installations"])
+
+# Inventory management
+api_router.include_router(inventory.router, tags=["Inventory"])
 
 # Webhooks (no auth required)
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
