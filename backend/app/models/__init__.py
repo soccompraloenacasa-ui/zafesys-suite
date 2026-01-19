@@ -6,6 +6,7 @@ from app.models.lead import Lead, LeadStatus, LeadSource
 from app.models.product import Product
 from app.models.technician import Technician
 from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
+from app.models.inventory import InventoryMovement, MovementType
 
 __all__ = [
     "User",
@@ -19,4 +20,6 @@ __all__ = [
     "InstallationStatus",
     "PaymentStatus",
     "PaymentMethod",
+    "InventoryMovement",
+    "MovementType",
 ]
