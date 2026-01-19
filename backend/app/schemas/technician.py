@@ -43,12 +43,16 @@ class TechnicianResponse(TechnicianBase):
 
 
 class TechnicianListResponse(BaseModel):
-    """Simplified for selection dropdowns."""
+    """Simplified for listing and selection dropdowns."""
     id: int
     full_name: str
     phone: str
+    email: Optional[str] = None
+    document_id: Optional[str] = None
     zone: Optional[str] = None
+    specialties: Optional[str] = None
     is_available: bool
+    is_active: bool
 
     class Config:
         from_attributes = True
