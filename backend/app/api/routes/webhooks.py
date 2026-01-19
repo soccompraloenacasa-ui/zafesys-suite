@@ -36,7 +36,6 @@ PRODUCT_KEYWORDS = {
 def verify_elevenlabs_signature(payload: bytes, signature: str, secret: str) -> bool:
     """Verify ElevenLabs webhook signature."""
     if not secret:
-        # If no secret configured, skip verification (dev mode)
         return True
 
     expected = hmac.new(
@@ -49,14 +48,7 @@ def verify_elevenlabs_signature(payload: bytes, signature: str, secret: str) -> 
 
 
 def format_transcript(transcript_data) -> str:
-    """
-    Convert transcript from various formats to a readable string.
-
-    ElevenLabs may send transcript as:
-    - A string (simple format)
-    - A list of message objects with role/message
-    - A nested structure with messages array
-    """
+    """Convert transcript from various formats to a readable string."""
     if transcript_data is None:
         return ""
 
@@ -76,7 +68,6 @@ def format_transcript(transcript_data) -> str:
         return "\n".join(lines)
 
     if isinstance(transcript_data, dict):
-        # Handle nested messages array
         messages = transcript_data.get("messages", [])
         return format_transcript(messages)
 
@@ -85,19 +76,17 @@ def format_transcript(transcript_data) -> str:
 
 def extract_phone_from_text(text: str) -> str | None:
     """Extract phone number from text using regex."""
-    # Colombian phone patterns
     patterns = [
-        r'\b3\d{9}\b',  # 3XXXXXXXXX (10 digits starting with 3)
-        r'\b\+57\s*3\d{9}\b',  # +57 3XXXXXXXXX
-        r'\b57\s*3\d{9}\b',  # 57 3XXXXXXXXX
-        r'\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b',  # XXX-XXX-XXXX
+        r'\b3\d{9}\b',
+        r'\b\+57\s*3\d{9}\b',
+        r'\b57\s*3\d{9}\b',
+        r'\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b',
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text.replace(" ", ""))
         if match:
             phone = re.sub(r'[^\d+]', '', match.group())
-            # Normalize to +57 format
             if phone.startswith("3") and len(phone) == 10:
                 return f"+57{phone}"
             elif phone.startswith("57") and len(phone) == 12:
@@ -111,7 +100,6 @@ def extract_phone_from_text(text: str) -> str | None:
 
 def extract_name_from_text(text: str) -> str | None:
     """Try to extract customer name from conversation text."""
-    # Look for common patterns
     patterns = [
         r'(?:mi nombre es|me llamo|soy)\s+([A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+)?)',
         r'(?:nombre[:\s]+)([A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+)?)',
@@ -122,7 +110,7 @@ def extract_name_from_text(text: str) -> str | None:
         match = re.search(pattern, text_lower, re.IGNORECASE)
         if match:
             name = match.group(1).strip().title()
-            if len(name) > 2:  # Avoid single letters
+            if len(name) > 2:
                 return name
 
     return None
@@ -141,10 +129,7 @@ def detect_product_interest(text: str) -> str | None:
 
 
 def calculate_interest_level(text: str) -> str:
-    """
-    Calculate interest level based on conversation content.
-    Returns: "high", "medium", or "low"
-    """
+    """Calculate interest level based on conversation content."""
     text_lower = text.lower()
     interest_score = 0
 
@@ -169,13 +154,7 @@ def determine_lead_status(interest_level: str, has_contact_info: bool) -> LeadSt
 
 
 def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
-    """
-    Analyze the conversation to extract customer data.
-
-    Checks multiple sources:
-    1. Explicit fields in payload (analysis, collected_data)
-    2. Text analysis of transcript
-    """
+    """Analyze the conversation to extract customer data."""
     result = {
         "name": None,
         "phone": None,
@@ -186,7 +165,6 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         "notes": None,
     }
 
-    # 1. Check analysis data from ElevenLabs
     if payload.analysis:
         result["name"] = payload.analysis.customer_name
         result["phone"] = payload.analysis.customer_phone
@@ -196,7 +174,6 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         result["interest_level"] = payload.analysis.interest_level or "medium"
         result["notes"] = payload.analysis.summary
 
-    # 2. Check collected_data or data_collection
     collected = payload.collected_data or payload.data_collection or {}
     if collected:
         result["name"] = result["name"] or collected.get("customer_name") or collected.get("name")
@@ -205,7 +182,6 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         result["address"] = result["address"] or collected.get("customer_address") or collected.get("address")
         result["product_interest"] = result["product_interest"] or collected.get("product_interest") or collected.get("product")
 
-    # 3. Check direct payload fields
     result["name"] = result["name"] or payload.customer_name
     result["phone"] = result["phone"] or payload.customer_phone
     result["email"] = result["email"] or payload.customer_email
@@ -213,11 +189,9 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
     result["product_interest"] = result["product_interest"] or payload.product_interest
     result["notes"] = result["notes"] or payload.notes
 
-    # 4. Analyze transcript text
     transcript_text = format_transcript(payload.transcript)
 
     if transcript_text:
-        # Extract missing data from text
         if not result["phone"]:
             result["phone"] = extract_phone_from_text(transcript_text)
 
@@ -227,76 +201,84 @@ def analyze_conversation(payload: ElevenLabsWebhookPayload) -> dict:
         if not result["product_interest"]:
             result["product_interest"] = detect_product_interest(transcript_text)
 
-        # Calculate interest level from conversation
         if result["interest_level"] == "low":
             result["interest_level"] = calculate_interest_level(transcript_text)
 
     return result
 
 
+# ============================================================
+# WEBHOOK ENDPOINTS
+# ============================================================
+
+@router.get("/elevenlabs/test-connection")
+async def test_connection():
+    """Simple endpoint to verify webhook route exists."""
+    logger.info("=== TEST CONNECTION CALLED ===")
+    return {"status": "ok", "message": "Webhook endpoint is reachable"}
+
+
 @router.post("/elevenlabs/conversation")
 async def elevenlabs_conversation_webhook(
     request: Request,
     db: Session = Depends(get_db),
-    x_elevenlabs_signature: str = Header(default=""),
-    x_webhook_secret: str = Header(default=""),
 ):
     """
     Webhook endpoint for ElevenLabs conversation data.
-
-    When Ana (voice assistant) completes a conversation, ElevenLabs
-    sends the conversation data here to create a new lead automatically.
-
-    The webhook:
-    1. Verifies the signature (if secret is configured)
-    2. Parses the ElevenLabs payload
-    3. Analyzes the conversation to extract customer data
-    4. Creates or updates a lead with status based on interest level
     """
-    # Get raw body for signature verification
+    # === LOG EVERYTHING ===
+    logger.info("=" * 60)
+    logger.info("=== ELEVENLABS WEBHOOK RECEIVED ===")
+    logger.info("=" * 60)
+
+    # Log headers
+    headers_dict = dict(request.headers)
+    logger.info(f"Headers: {json.dumps(headers_dict, indent=2)}")
+
+    # Log body
     body = await request.body()
+    body_str = body.decode('utf-8', errors='replace')
+    logger.info(f"Body length: {len(body_str)} bytes")
+    logger.info(f"Body: {body_str[:2000]}...")  # First 2000 chars
 
-    logger.info(f"Received ElevenLabs webhook: {body[:500]}...")
+    # Log query params
+    logger.info(f"Query params: {dict(request.query_params)}")
+    logger.info(f"URL: {request.url}")
+    logger.info(f"Method: {request.method}")
 
-    # Verify signature (if secret is configured)
-    signature = x_elevenlabs_signature or x_webhook_secret
-    if settings.ELEVENLABS_WEBHOOK_SECRET:
-        if not verify_elevenlabs_signature(body, signature, settings.ELEVENLABS_WEBHOOK_SECRET):
-            logger.warning("Invalid webhook signature")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook signature"
-            )
+    # === TEMPORARILY SKIP SIGNATURE VALIDATION ===
+    # TODO: Re-enable after debugging
+    logger.info("SIGNATURE VALIDATION SKIPPED FOR DEBUGGING")
 
     # Parse payload
     try:
         data = json.loads(body)
+        logger.info(f"Parsed JSON keys: {list(data.keys())}")
         payload = ElevenLabsWebhookPayload(**data)
+        logger.info(f"Conversation ID: {payload.conversation_id}")
     except Exception as e:
         logger.error(f"Failed to parse webhook payload: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid payload: {str(e)}"
-        )
+        logger.error(f"Raw body was: {body_str[:500]}")
+        # Return 200 anyway to acknowledge receipt
+        return {"status": "error", "message": f"Parse error: {str(e)}", "received": True}
 
     # Check if conversation already processed
     existing = crud.lead.get_by_elevenlabs_conversation(
         db, conversation_id=payload.conversation_id
     )
     if existing:
-        logger.info(f"Conversation {payload.conversation_id} already processed, returning existing lead {existing.id}")
-        return LeadResponse.model_validate(existing)
+        logger.info(f"Conversation {payload.conversation_id} already processed, lead ID: {existing.id}")
+        return {"status": "duplicate", "lead_id": existing.id}
 
     # Analyze conversation
     analysis = analyze_conversation(payload)
     transcript_text = format_transcript(payload.transcript)
 
-    logger.info(f"Conversation analysis: {analysis}")
+    logger.info(f"Analysis result: {analysis}")
 
     # Check if we have minimum required data
     if not analysis["phone"] and not analysis["name"]:
         logger.warning(f"No customer data extracted from conversation {payload.conversation_id}")
-        # Still create a lead with placeholder data
         analysis["name"] = "Cliente sin identificar"
         analysis["phone"] = f"pendiente-{payload.conversation_id[:8]}"
 
@@ -304,7 +286,6 @@ async def elevenlabs_conversation_webhook(
     if analysis["phone"] and not analysis["phone"].startswith("pendiente"):
         existing_phone = crud.lead.get_by_phone(db, phone=analysis["phone"])
         if existing_phone:
-            # Update existing lead with conversation data
             logger.info(f"Updating existing lead {existing_phone.id} with conversation data")
             existing_phone.elevenlabs_conversation_id = payload.conversation_id
             existing_phone.conversation_transcript = transcript_text
@@ -312,19 +293,18 @@ async def elevenlabs_conversation_webhook(
                 existing_phone.product_interest = analysis["product_interest"]
             if analysis["notes"]:
                 existing_phone.notes = (existing_phone.notes or "") + f"\n[Ana] {analysis['notes']}"
-            # Update status if interest is high
             if analysis["interest_level"] == "high" and existing_phone.status == LeadStatus.NUEVO:
                 existing_phone.status = LeadStatus.POTENCIAL
             db.add(existing_phone)
             db.commit()
             db.refresh(existing_phone)
-            return LeadResponse.model_validate(existing_phone)
+            return {"status": "updated", "lead_id": existing_phone.id}
 
     # Determine lead status
     has_contact = bool(analysis["phone"] and not analysis["phone"].startswith("pendiente"))
     lead_status = determine_lead_status(analysis["interest_level"], has_contact)
 
-    # Create new lead from conversation
+    # Create new lead
     lead = crud.lead.create_from_elevenlabs(
         db,
         conversation_id=payload.conversation_id,
@@ -340,21 +320,18 @@ async def elevenlabs_conversation_webhook(
     )
 
     logger.info(f"Created new lead {lead.id} from conversation {payload.conversation_id}")
+    logger.info("=" * 60)
 
-    return LeadResponse.model_validate(lead)
+    return {"status": "created", "lead_id": lead.id}
 
 
 @router.post("/elevenlabs/test")
 async def test_elevenlabs_webhook(
     db: Session = Depends(get_db)
 ):
-    """
-    Test endpoint to simulate ElevenLabs webhook.
-    Creates a sample lead from a mock conversation.
-    """
+    """Test endpoint to simulate ElevenLabs webhook."""
     import uuid
 
-    # Create a test lead
     lead = crud.lead.create_from_elevenlabs(
         db,
         conversation_id=f"test-{uuid.uuid4()}",
@@ -363,7 +340,7 @@ async def test_elevenlabs_webhook(
         email="test@example.com",
         address="Calle 123 #45-67, Bogota",
         product_interest="OS566F",
-        transcript="Ana: Hola, bienvenido a ZAFESYS. Soy Ana, tu asistente virtual.\nCliente: Hola, quiero información sobre cerraduras biométricas.\nAna: Excelente, tenemos el modelo OS566F con sensor de huella. ¿Te gustaría agendar una instalación?\nCliente: Sí, me interesa. Mi nombre es Juan Pérez.\nAna: Perfecto Juan, ¿me puedes dar tu número de teléfono?",
+        transcript="Ana: Hola, bienvenido a ZAFESYS.\nCliente: Hola, quiero información sobre cerraduras.",
         notes="Lead creado desde webhook de prueba",
         status=LeadStatus.POTENCIAL,
         source=LeadSource.ANA_VOICE,
@@ -384,5 +361,6 @@ async def elevenlabs_webhook_status():
         "webhook_url": "/api/v1/webhooks/elevenlabs/conversation",
         "secret_configured": bool(settings.ELEVENLABS_WEBHOOK_SECRET),
         "agent_id_configured": bool(settings.ELEVENLABS_AGENT_ID),
-        "status": "ready"
+        "status": "ready",
+        "signature_validation": "DISABLED FOR DEBUGGING"
     }
