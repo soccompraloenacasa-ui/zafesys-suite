@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Wrench, Phone, Mail, MapPin, Star, Calendar } from 'lucide-react';
+import { Plus, Wrench, Phone, Mail, MapPin, Star, Calendar, Edit2 } from 'lucide-react';
 import { techniciansApi } from '../services/api';
 import type { Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -11,6 +11,7 @@ interface TechnicianFormData {
   document_id: string;
   zone: string;
   specialties: string;
+  is_active: boolean;
 }
 
 const initialFormData: TechnicianFormData = {
@@ -20,12 +21,15 @@ const initialFormData: TechnicianFormData = {
   document_id: '',
   zone: '',
   specialties: '',
+  is_active: true,
 };
 
 export default function TechniciansPage() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<TechnicianFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +52,24 @@ export default function TechniciansPage() {
   const handleOpenModal = () => {
     setFormData(initialFormData);
     setError(null);
+    setIsEditMode(false);
+    setEditingId(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditTechnician = (tech: Technician) => {
+    setFormData({
+      full_name: tech.full_name,
+      phone: tech.phone,
+      email: tech.email || '',
+      document_id: tech.document_id || '',
+      zone: tech.zone || '',
+      specialties: tech.specialties || '',
+      is_active: tech.is_active,
+    });
+    setEditingId(tech.id);
+    setIsEditMode(true);
+    setError(null);
     setIsModalOpen(true);
   };
 
@@ -55,13 +77,24 @@ export default function TechniciansPage() {
     setIsModalOpen(false);
     setFormData(initialFormData);
     setError(null);
+    setIsEditMode(false);
+    setEditingId(null);
   };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleToggleActive = () => {
+    setFormData((prev) => ({ ...prev, is_active: !prev.is_active }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,14 +110,19 @@ export default function TechniciansPage() {
         document_id: formData.document_id || undefined,
         zone: formData.zone || undefined,
         specialties: formData.specialties || undefined,
+        is_active: formData.is_active,
       };
 
-      await techniciansApi.create(technicianData);
+      if (isEditMode && editingId) {
+        await techniciansApi.update(editingId, technicianData);
+      } else {
+        await techniciansApi.create(technicianData);
+      }
       handleCloseModal();
       fetchTechnicians();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || 'Error al crear el tecnico');
+      setError(error.response?.data?.detail || 'Error al guardar el tecnico');
     } finally {
       setSaving(false);
     }
@@ -128,7 +166,8 @@ export default function TechniciansPage() {
           {technicians.map((tech) => (
             <div
               key={tech.id}
-              className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+              onClick={() => handleEditTechnician(tech)}
+              className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             >
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center">
@@ -148,22 +187,19 @@ export default function TechniciansPage() {
                     {tech.is_active ? 'Activo' : 'Inactivo'}
                   </span>
                 </div>
+                <Edit2 className="w-4 h-4 text-gray-400" />
               </div>
 
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Phone className="w-4 h-4 text-gray-400" />
-                  <a href={`tel:${tech.phone}`} className="hover:text-cyan-600">
-                    {tech.phone}
-                  </a>
+                  <span>{tech.phone}</span>
                 </div>
 
                 {tech.email && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Mail className="w-4 h-4 text-gray-400" />
-                    <a href={`mailto:${tech.email}`} className="hover:text-cyan-600 truncate">
-                      {tech.email}
-                    </a>
+                    <span className="truncate">{tech.email}</span>
                   </div>
                 )}
 
@@ -181,22 +217,22 @@ export default function TechniciansPage() {
                   <span className="text-sm font-medium text-gray-700">4.8</span>
                   <span className="text-xs text-gray-500">(32 instalaciones)</span>
                 </div>
-                <button className="text-sm text-cyan-600 hover:underline flex items-center gap-1">
+                <span className="text-sm text-cyan-600 flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  Ver agenda
-                </button>
+                  Click para editar
+                </span>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Create Technician Modal */}
+      {/* Create/Edit Technician Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title="Nuevo Tecnico"
-        subtitle="Agrega un instalador al equipo"
+        title={isEditMode ? 'Editar Tecnico' : 'Nuevo Tecnico'}
+        subtitle={isEditMode ? 'Modifica los datos del instalador' : 'Agrega un instalador al equipo'}
         size="md"
         footer={
           <>
@@ -211,7 +247,7 @@ export default function TechniciansPage() {
               disabled={saving || !formData.full_name || !formData.phone}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : 'Crear Tecnico'}
+              {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Tecnico'}
             </button>
           </>
         }
@@ -220,6 +256,31 @@ export default function TechniciansPage() {
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Active Toggle - Only show in edit mode */}
+          {isEditMode && (
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <p className="font-medium text-gray-900">Estado del Tecnico</p>
+                <p className="text-sm text-gray-500">
+                  {formData.is_active ? 'Puede recibir instalaciones' : 'No recibe instalaciones'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleActive}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  formData.is_active ? 'bg-cyan-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.is_active ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
           )}
 
