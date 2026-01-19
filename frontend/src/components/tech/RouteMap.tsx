@@ -3,23 +3,23 @@ import { Loader2 } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDHvw_UOi-TPHMa8V-qox32wOf6oCJkt2g';
 
-interface Location {
+interface MapLocation {
   id: number;
   address: string;
-  city: string | null;
+  city?: string | null;
   name: string;
   order: number;
 }
 
 interface RouteMapProps {
-  locations: Location[];
+  locations: MapLocation[];
   height?: string;
 }
 
-// Load Google Maps script
+// Cargar script de Google Maps
 function loadGoogleMapsScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.google && window.google.maps) {
+    if (window.google?.maps) {
       resolve();
       return;
     }
@@ -62,13 +62,14 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
 
         if (!isMounted || !mapRef.current) return;
 
-        // Initialize map centered on Medellín
+        // Crear mapa centrado en Medellín
         const map = new google.maps.Map(mapRef.current, {
           zoom: 12,
           center: { lat: 6.2442, lng: -75.5812 }, // Medellín
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
+          zoomControl: true,
           styles: [
             {
               featureType: 'poi',
@@ -80,134 +81,28 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
 
         mapInstanceRef.current = map;
 
-        // Create directions service and renderer
-        const directionsService = new google.maps.DirectionsService();
+        // Crear DirectionsRenderer
         const directionsRenderer = new google.maps.DirectionsRenderer({
           map,
-          suppressMarkers: true, // We'll add custom markers
+          suppressMarkers: true, // Usaremos marcadores personalizados
           polylineOptions: {
-            strokeColor: '#06b6d4',
+            strokeColor: '#0891b2', // cyan-600
             strokeWeight: 4,
             strokeOpacity: 0.8,
           },
         });
-
         directionsRendererRef.current = directionsRenderer;
 
-        // Geocode addresses and create route
-        const geocoder = new google.maps.Geocoder();
-        const waypoints: google.maps.DirectionsWaypoint[] = [];
-        const markers: google.maps.Marker[] = [];
-
-        // Geocode all locations
-        const geocodePromises = locations.map((loc, index) => {
-          return new Promise<{ location: Location; position: google.maps.LatLng | null }>((resolve) => {
-            const fullAddress = loc.city
-              ? `${loc.address}, ${loc.city}, Colombia`
-              : `${loc.address}, Medellín, Colombia`;
-
-            geocoder.geocode({ address: fullAddress }, (results, status) => {
-              if (status === 'OK' && results && results[0]) {
-                resolve({ location: loc, position: results[0].geometry.location });
-              } else {
-                console.warn(`Could not geocode: ${fullAddress}`);
-                resolve({ location: loc, position: null });
-              }
-            });
-          });
-        });
-
-        const geocodedLocations = await Promise.all(geocodePromises);
-        const validLocations = geocodedLocations.filter((g) => g.position !== null);
-
-        if (validLocations.length === 0) {
-          setError('No se pudieron encontrar las direcciones');
-          setLoading(false);
-          return;
-        }
-
-        // Add custom markers
-        validLocations.forEach((g, index) => {
-          if (!g.position) return;
-
-          const marker = new google.maps.Marker({
-            position: g.position,
-            map,
-            label: {
-              text: (index + 1).toString(),
-              color: 'white',
-              fontWeight: 'bold',
-            },
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 20,
-              fillColor: index === 0 ? '#22c55e' : index === validLocations.length - 1 ? '#ef4444' : '#06b6d4',
-              fillOpacity: 1,
-              strokeColor: 'white',
-              strokeWeight: 2,
-            },
-            title: g.location.name,
-          });
-
-          // Info window
-          const infoWindow = new google.maps.InfoWindow({
-            content: `
-              <div style="padding: 8px; max-width: 200px;">
-                <strong style="color: #06b6d4;">#${index + 1}</strong>
-                <p style="margin: 4px 0; font-weight: 600;">${g.location.name}</p>
-                <p style="margin: 0; font-size: 12px; color: #666;">${g.location.address}</p>
-              </div>
-            `,
-          });
-
-          marker.addListener('click', () => {
-            infoWindow.open(map, marker);
-          });
-
-          markers.push(marker);
-        });
-
-        // Calculate route if more than 1 location
-        if (validLocations.length > 1) {
-          const origin = validLocations[0].position!;
-          const destination = validLocations[validLocations.length - 1].position!;
-
-          // Middle locations as waypoints
-          const waypointLocations = validLocations.slice(1, -1);
-          waypointLocations.forEach((g) => {
-            if (g.position) {
-              waypoints.push({
-                location: g.position,
-                stopover: true,
-              });
-            }
-          });
-
-          directionsService.route(
-            {
-              origin,
-              destination,
-              waypoints,
-              optimizeWaypoints: false, // We already optimized by zone
-              travelMode: google.maps.TravelMode.DRIVING,
-            },
-            (result, status) => {
-              if (status === 'OK' && result) {
-                directionsRenderer.setDirections(result);
-              }
-            }
-          );
-        } else if (validLocations.length === 1 && validLocations[0].position) {
-          // Center on single location
-          map.setCenter(validLocations[0].position);
-          map.setZoom(15);
-        }
+        // Geocodificar direcciones y mostrar ruta
+        await displayRoute(map, directionsRenderer, locations);
 
         setLoading(false);
       } catch (err) {
         console.error('Error initializing map:', err);
-        setError('Error cargando el mapa');
-        setLoading(false);
+        if (isMounted) {
+          setError('Error al cargar el mapa');
+          setLoading(false);
+        }
       }
     }
 
@@ -217,6 +112,121 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
       isMounted = false;
     };
   }, [locations]);
+
+  async function displayRoute(
+    map: google.maps.Map,
+    directionsRenderer: google.maps.DirectionsRenderer,
+    locs: MapLocation[]
+  ) {
+    if (locs.length === 0) return;
+
+    const directionsService = new google.maps.DirectionsService();
+    const geocoder = new google.maps.Geocoder();
+
+    // Geocodificar todas las direcciones
+    const geocodedLocations = await Promise.all(
+      locs.map(async (loc) => {
+        const fullAddress = loc.city
+          ? `${loc.address}, ${loc.city}, Colombia`
+          : `${loc.address}, Medellín, Colombia`;
+
+        try {
+          const result = await geocoder.geocode({ address: fullAddress });
+          if (result.results[0]) {
+            return {
+              ...loc,
+              position: result.results[0].geometry.location,
+            };
+          }
+        } catch (e) {
+          console.error(`Error geocoding ${fullAddress}:`, e);
+        }
+        return null;
+      })
+    );
+
+    const validLocations = geocodedLocations.filter(
+      (loc): loc is MapLocation & { position: google.maps.LatLng } => loc !== null
+    );
+
+    if (validLocations.length === 0) {
+      setError('No se pudieron encontrar las direcciones');
+      return;
+    }
+
+    // Agregar marcadores personalizados
+    validLocations.forEach((loc) => {
+      const marker = new google.maps.Marker({
+        position: loc.position,
+        map,
+        label: {
+          text: loc.order.toString(),
+          color: 'white',
+          fontWeight: 'bold',
+          fontSize: '14px',
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 18,
+          fillColor: '#0891b2',
+          fillOpacity: 1,
+          strokeColor: 'white',
+          strokeWeight: 3,
+        },
+        title: `${loc.order}. ${loc.name}`,
+      });
+
+      // Info window al hacer click
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px; max-width: 200px;">
+            <div style="font-weight: bold; color: #0891b2; margin-bottom: 4px;">
+              #${loc.order} ${loc.name}
+            </div>
+            <div style="font-size: 12px; color: #666;">
+              ${loc.address}${loc.city ? `, ${loc.city}` : ''}
+            </div>
+          </div>
+        `,
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(map, marker);
+      });
+    });
+
+    // Si hay más de una ubicación, mostrar la ruta
+    if (validLocations.length > 1) {
+      const origin = validLocations[0].position;
+      const destination = validLocations[validLocations.length - 1].position;
+      const waypoints = validLocations.slice(1, -1).map((loc) => ({
+        location: loc.position,
+        stopover: true,
+      }));
+
+      try {
+        const result = await directionsService.route({
+          origin,
+          destination,
+          waypoints,
+          travelMode: google.maps.TravelMode.DRIVING,
+          optimizeWaypoints: false, // Ya están optimizados
+        });
+
+        directionsRenderer.setDirections(result);
+      } catch (e) {
+        console.error('Error getting directions:', e);
+        // Si falla la ruta, al menos ajustar el zoom a los marcadores
+        const bounds = new google.maps.LatLngBounds();
+        validLocations.forEach((loc) => bounds.extend(loc.position));
+        map.fitBounds(bounds);
+      }
+    } else {
+      // Solo una ubicación, centrar en ella
+      map.setCenter(validLocations[0].position);
+      map.setZoom(15);
+    }
+  }
 
   if (locations.length === 0) {
     return (
@@ -231,9 +241,11 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
 
   return (
     <div className="relative rounded-xl overflow-hidden" style={{ height }}>
+      <div ref={mapRef} className="w-full h-full" />
+
       {loading && (
-        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10">
-          <div className="flex items-center gap-2 text-gray-500">
+        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-gray-600">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span>Cargando mapa...</span>
           </div>
@@ -241,37 +253,10 @@ export default function RouteMap({ locations, height = '300px' }: RouteMapProps)
       )}
 
       {error && (
-        <div className="absolute inset-0 bg-red-50 flex items-center justify-center z-10">
-          <p className="text-red-500 text-sm">{error}</p>
-        </div>
-      )}
-
-      <div ref={mapRef} className="w-full h-full" />
-
-      {/* Legend */}
-      {!loading && !error && (
-        <div className="absolute bottom-2 left-2 bg-white rounded-lg shadow-md p-2 text-xs">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-4 h-4 rounded-full bg-green-500" />
-            <span>Inicio</span>
-          </div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-4 h-4 rounded-full bg-cyan-500" />
-            <span>Parada</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-red-500" />
-            <span>Final</span>
-          </div>
+        <div className="absolute inset-0 bg-red-50 flex items-center justify-center">
+          <p className="text-red-600 text-sm">{error}</p>
         </div>
       )}
     </div>
   );
-}
-
-// Type declaration for google maps
-declare global {
-  interface Window {
-    google: typeof google;
-  }
 }
