@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
@@ -26,6 +26,8 @@ const INSTALLATION_PRICES = [
   { value: '250000', label: '$250,000 - Instalación + desplazamiento' },
 ];
 
+type DiscountType = 'none' | 'percentage' | 'value';
+
 interface InstallationFormData {
   lead_id: string;
   product_id: string;
@@ -37,6 +39,8 @@ interface InstallationFormData {
   city: string;
   address_notes: string;
   installation_price: string;
+  discount_type: DiscountType;
+  discount_value: string;
   total_price: string;
   customer_notes: string;
 }
@@ -52,6 +56,8 @@ const initialFormData: InstallationFormData = {
   city: '',
   address_notes: '',
   installation_price: '189000',
+  discount_type: 'none',
+  discount_value: '',
   total_price: '',
   customer_notes: '',
 };
@@ -164,21 +170,39 @@ export default function InstallationsPage() {
   const weekDays = getWeekDays();
   const today = new Date();
 
-  // Calculate total price helper
+  // Calculate total price with discount
   const calculateTotalPrice = (
     productId: string,
     quantity: string,
     installationPrice: string,
+    discountType: DiscountType,
+    discountValue: string,
     productsList: Product[]
-  ): string => {
-    if (!productId || !quantity || !installationPrice) return '';
+  ): { subtotal: number; discount: number; total: number } => {
+    if (!productId || !quantity || !installationPrice) {
+      return { subtotal: 0, discount: 0, total: 0 };
+    }
     
     const selectedProduct = productsList.find((p) => p.id === parseInt(productId));
-    if (!selectedProduct) return '';
+    if (!selectedProduct) {
+      return { subtotal: 0, discount: 0, total: 0 };
+    }
     
     const productTotal = selectedProduct.price * parseInt(quantity);
     const installTotal = parseInt(installationPrice);
-    return (productTotal + installTotal).toString();
+    const subtotal = productTotal + installTotal;
+    
+    let discount = 0;
+    if (discountType === 'percentage' && discountValue) {
+      const percentage = parseFloat(discountValue) || 0;
+      discount = Math.round(subtotal * (percentage / 100));
+    } else if (discountType === 'value' && discountValue) {
+      discount = parseInt(discountValue) || 0;
+    }
+    
+    const total = Math.max(0, subtotal - discount);
+    
+    return { subtotal, discount, total };
   };
 
   // Detail modal handlers
@@ -281,18 +305,47 @@ export default function InstallationsPage() {
       }
     }
 
-    // Auto-calculate price when product, quantity or installation price changes
-    if (name === 'product_id' || name === 'quantity' || name === 'installation_price') {
+    // Reset discount value when changing type
+    if (name === 'discount_type') {
+      const newDiscountType = value as DiscountType;
+      const priceData = calculateTotalPrice(
+        formData.product_id, 
+        formData.quantity, 
+        formData.installation_price,
+        newDiscountType,
+        '', // Reset discount value
+        products
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        discount_type: newDiscountType,
+        discount_value: '',
+        total_price: priceData.total.toString(),
+      }));
+      return;
+    }
+
+    // Auto-calculate price when product, quantity, installation price, or discount changes
+    if (name === 'product_id' || name === 'quantity' || name === 'installation_price' || name === 'discount_value') {
       const newProductId = name === 'product_id' ? value : formData.product_id;
       const newQuantity = name === 'quantity' ? value : formData.quantity;
       const newInstallPrice = name === 'installation_price' ? value : formData.installation_price;
+      const newDiscountValue = name === 'discount_value' ? value : formData.discount_value;
 
-      const totalPrice = calculateTotalPrice(newProductId, newQuantity, newInstallPrice, products);
+      const priceData = calculateTotalPrice(
+        newProductId, 
+        newQuantity, 
+        newInstallPrice, 
+        formData.discount_type,
+        newDiscountValue,
+        products
+      );
 
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        total_price: totalPrice,
+        total_price: priceData.total.toString(),
       }));
       return;
     }
@@ -392,6 +445,18 @@ export default function InstallationsPage() {
   // Get selected product for price display
   const selectedProduct = formData.product_id 
     ? products.find((p) => p.id === parseInt(formData.product_id)) 
+    : null;
+
+  // Calculate price breakdown for display
+  const priceBreakdown = selectedProduct 
+    ? calculateTotalPrice(
+        formData.product_id,
+        formData.quantity,
+        formData.installation_price,
+        formData.discount_type,
+        formData.discount_value,
+        products
+      )
     : null;
 
   return (
@@ -1034,8 +1099,49 @@ export default function InstallationsPage() {
               </select>
             </div>
 
+            {/* Discount Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descuento
+              </label>
+              <div className="flex gap-2">
+                <select
+                  name="discount_type"
+                  value={formData.discount_type}
+                  onChange={handleInputChange}
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                >
+                  <option value="none">Sin descuento</option>
+                  <option value="percentage">Porcentaje (%)</option>
+                  <option value="value">Valor fijo ($)</option>
+                </select>
+                
+                {formData.discount_type !== 'none' && (
+                  <div className="flex-1 relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      {formData.discount_type === 'percentage' ? (
+                        <Percent className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      name="discount_value"
+                      value={formData.discount_value}
+                      onChange={handleInputChange}
+                      placeholder={formData.discount_type === 'percentage' ? 'Ej: 10' : 'Ej: 50000'}
+                      min="0"
+                      max={formData.discount_type === 'percentage' ? '100' : undefined}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Price Breakdown - Read Only */}
-            {selectedProduct && formData.total_price && (
+            {selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
               <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
                 <div className="space-y-2 text-sm">
@@ -1053,10 +1159,32 @@ export default function InstallationsPage() {
                       ${parseInt(formData.installation_price).toLocaleString()}
                     </span>
                   </div>
+                  
+                  {/* Subtotal before discount */}
+                  {priceBreakdown.discount > 0 && (
+                    <>
+                      <div className="flex justify-between pt-2 border-t border-cyan-200">
+                        <span className="text-gray-600">Subtotal</span>
+                        <span className="font-medium">
+                          ${priceBreakdown.subtotal.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-red-600">
+                        <span>
+                          Descuento 
+                          {formData.discount_type === 'percentage' && ` (${formData.discount_value}%)`}
+                        </span>
+                        <span className="font-medium">
+                          -${priceBreakdown.discount.toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  
                   <div className="flex justify-between pt-3 border-t border-cyan-200">
                     <span className="font-bold text-cyan-900 text-base">TOTAL A COBRAR</span>
                     <span className="font-bold text-cyan-700 text-xl">
-                      ${parseInt(formData.total_price || '0').toLocaleString()}
+                      ${priceBreakdown.total.toLocaleString()}
                     </span>
                   </div>
                 </div>
