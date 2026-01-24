@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -56,6 +56,21 @@ const initialFormData: InstallationFormData = {
   customer_notes: '',
 };
 
+// Quick lead form
+interface QuickLeadFormData {
+  name: string;
+  phone: string;
+  city: string;
+  address: string;
+}
+
+const initialQuickLeadData: QuickLeadFormData = {
+  name: '',
+  phone: '',
+  city: '',
+  address: '',
+};
+
 // Extended installation with lead and product details
 interface InstallationDetail extends Installation {
   lead?: Lead;
@@ -73,6 +88,12 @@ export default function InstallationsPage() {
   const [formData, setFormData] = useState<InstallationFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Quick lead modal state
+  const [isQuickLeadModalOpen, setIsQuickLeadModalOpen] = useState(false);
+  const [quickLeadData, setQuickLeadData] = useState<QuickLeadFormData>(initialQuickLeadData);
+  const [savingLead, setSavingLead] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
 
   // Detail modal state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -307,6 +328,61 @@ export default function InstallationsPage() {
       setError(error.response?.data?.detail || 'Error al crear la instalacion');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Quick Lead handlers
+  const handleOpenQuickLead = () => {
+    setQuickLeadData(initialQuickLeadData);
+    setLeadError(null);
+    setIsQuickLeadModalOpen(true);
+  };
+
+  const handleCloseQuickLead = () => {
+    setIsQuickLeadModalOpen(false);
+    setQuickLeadData(initialQuickLeadData);
+    setLeadError(null);
+  };
+
+  const handleQuickLeadChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setQuickLeadData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleQuickLeadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLeadError(null);
+    setSavingLead(true);
+
+    try {
+      const leadData = {
+        name: quickLeadData.name,
+        phone: quickLeadData.phone,
+        city: quickLeadData.city || undefined,
+        address: quickLeadData.address || undefined,
+        source: 'instalacion_rapida',
+        status: 'nuevo',
+      };
+
+      const newLead = await leadsApi.create(leadData);
+      
+      // Add to leads list and select it
+      setLeads((prev) => [...prev, newLead]);
+      setFormData((prev) => ({
+        ...prev,
+        lead_id: newLead.id.toString(),
+        address: newLead.address || prev.address,
+        city: newLead.city || prev.city,
+      }));
+      
+      handleCloseQuickLead();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setLeadError(error.response?.data?.detail || 'Error al crear el cliente');
+    } finally {
+      setSavingLead(false);
     }
   };
 
@@ -621,6 +697,115 @@ export default function InstallationsPage() {
         </div>
       )}
 
+      {/* Quick Lead Modal */}
+      {isQuickLeadModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Agregar Cliente Rápido</h3>
+                <p className="text-sm text-gray-500">Solo datos básicos</p>
+              </div>
+              <button
+                onClick={handleCloseQuickLead}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickLeadSubmit} className="p-6 space-y-4">
+              {leadError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {leadError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={quickLeadData.name}
+                  onChange={handleQuickLeadChange}
+                  placeholder="Nombre del cliente"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Teléfono *
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={quickLeadData.phone}
+                  onChange={handleQuickLeadChange}
+                  placeholder="3001234567"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ciudad
+                </label>
+                <select
+                  name="city"
+                  value={quickLeadData.city}
+                  onChange={handleQuickLeadChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                >
+                  <option value="">Seleccionar...</option>
+                  {CITIES.map((city) => (
+                    <option key={city.value} value={city.label}>
+                      {city.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  value={quickLeadData.address}
+                  onChange={handleQuickLeadChange}
+                  placeholder="Dirección de instalación"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseQuickLead}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingLead || !quickLeadData.name || !quickLeadData.phone}
+                  className="flex-1 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingLead ? 'Guardando...' : 'Agregar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Create Installation Modal */}
       <Modal
         isOpen={isModalOpen}
@@ -658,25 +843,35 @@ export default function InstallationsPage() {
               </div>
             )}
 
-            {/* Lead Selection */}
+            {/* Lead Selection with Add Button */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cliente (Lead) *
               </label>
-              <select
-                name="lead_id"
-                value={formData.lead_id}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                required
-              >
-                <option value="">Seleccionar cliente...</option>
-                {leads.map((lead) => (
-                  <option key={lead.id} value={lead.id}>
-                    {lead.name} - {lead.phone}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  name="lead_id"
+                  value={formData.lead_id}
+                  onChange={handleInputChange}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  required
+                >
+                  <option value="">Seleccionar cliente...</option>
+                  {leads.map((lead) => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.name} - {lead.phone}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleOpenQuickLead}
+                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
+                  title="Agregar cliente nuevo"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Product Selection */}
@@ -836,8 +1031,8 @@ export default function InstallationsPage() {
               </select>
             </div>
 
-            {/* Price Breakdown */}
-            {selectedProduct && (
+            {/* Price Breakdown - Read Only */}
+            {selectedProduct && formData.total_price && (
               <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
                 <div className="space-y-2 text-sm">
@@ -855,35 +1050,15 @@ export default function InstallationsPage() {
                       ${parseInt(formData.installation_price).toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex justify-between pt-2 border-t border-cyan-200">
-                    <span className="font-semibold text-cyan-900">Total</span>
-                    <span className="font-bold text-cyan-700 text-lg">
+                  <div className="flex justify-between pt-3 border-t border-cyan-200">
+                    <span className="font-bold text-cyan-900 text-base">TOTAL A COBRAR</span>
+                    <span className="font-bold text-cyan-700 text-xl">
                       ${parseInt(formData.total_price || '0').toLocaleString()}
                     </span>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Total Price (editable for discounts) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio Total Final (COP) *
-              </label>
-              <input
-                type="number"
-                name="total_price"
-                value={formData.total_price}
-                onChange={handleInputChange}
-                placeholder="0"
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Se calcula automáticamente. Puedes ajustar si aplica descuento.
-              </p>
-            </div>
 
             {/* Notes */}
             <div>
