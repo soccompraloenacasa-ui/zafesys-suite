@@ -1,7 +1,7 @@
 """
 ZAFESYS Suite - Product Schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import datetime
 from decimal import Decimal
@@ -16,9 +16,9 @@ class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
     model: str
-    category: ProductCategory = "silver"
+    category: Optional[ProductCategory] = "silver"
     price: Decimal
-    supplier_cost: Decimal = Decimal("0")
+    supplier_cost: Optional[Decimal] = Decimal("0")
     installation_price: Decimal = Decimal("0")
     stock: int = 0
     min_stock_alert: int = 5
@@ -51,9 +51,21 @@ class ProductStockUpdate(BaseModel):
     stock: int
 
 
-class ProductResponse(ProductBase):
+class ProductResponse(BaseModel):
     id: int
-    is_active: bool
+    sku: str
+    name: str
+    description: Optional[str] = None
+    model: str
+    category: Optional[str] = "silver"
+    price: Decimal
+    supplier_cost: Optional[Decimal] = Decimal("0")
+    installation_price: Decimal = Decimal("0")
+    stock: int = 0
+    min_stock_alert: int = 5
+    features: Optional[str] = None
+    image_url: Optional[str] = None
+    is_active: bool = True
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -67,13 +79,13 @@ class ProductListResponse(BaseModel):
     sku: str
     name: str
     model: str
-    category: str = "silver"
+    category: Optional[str] = "silver"
     price: Decimal
-    supplier_cost: Decimal = Decimal("0")
+    supplier_cost: Optional[Decimal] = Decimal("0")
     installation_price: Decimal = Decimal("0")
-    stock: int
+    stock: int = 0
     min_stock_alert: int = 5
-    is_active: bool
+    is_active: bool = True
     image_url: Optional[str] = None
 
     class Config:
