@@ -124,9 +124,9 @@ export default function ProductsPage() {
         installation_price: parseFloat(formData.installation_price) || 0,
         stock: parseInt(formData.stock) || 0,
         min_stock_alert: parseInt(formData.min_stock_alert) || 5,
-        description: formData.description || null,
-        features: formData.features || null,
-        image_url: formData.image_url || null,
+        description: formData.description || undefined,
+        features: formData.features || undefined,
+        image_url: formData.image_url || undefined,
       };
 
       if (editingProduct) {
