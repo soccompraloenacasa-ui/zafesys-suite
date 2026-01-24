@@ -38,6 +38,7 @@ export default function ProductsPage() {
   const [formData, setFormData] = useState<ProductFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   const fetchProducts = async () => {
     try {
@@ -62,6 +63,25 @@ export default function ProductsPage() {
 
   const handleOpenModal = () => {
     setFormData(initialFormData);
+    setEditingProduct(null);
+    setError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      sku: product.sku,
+      model: product.model || '',
+      price: product.price.toString(),
+      installation_price: (product.installation_price || 0).toString(),
+      stock: product.stock.toString(),
+      min_stock_alert: (product.min_stock_alert || 5).toString(),
+      description: product.description || '',
+      features: product.features || '',
+      image_url: product.image_url || '',
+    });
     setError(null);
     setIsModalOpen(true);
   };
@@ -69,6 +89,7 @@ export default function ProductsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setFormData(initialFormData);
+    setEditingProduct(null);
     setError(null);
   };
 
@@ -98,12 +119,16 @@ export default function ProductsPage() {
         image_url: formData.image_url || undefined,
       };
 
-      await productsApi.create(productData);
+      if (editingProduct) {
+        await productsApi.update(editingProduct.id, productData);
+      } else {
+        await productsApi.create(productData);
+      }
       handleCloseModal();
       fetchProducts();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || 'Error al crear el producto');
+      setError(error.response?.data?.detail || `Error al ${editingProduct ? 'actualizar' : 'crear'} el producto`);
     } finally {
       setSaving(false);
     }
@@ -166,8 +191,12 @@ export default function ProductsPage() {
                   <Package className="w-6 h-6 text-cyan-500" />
                 </div>
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Edit2 className="w-4 h-4 text-gray-400" />
+                  <button 
+                    onClick={() => handleEditProduct(product)}
+                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Editar producto"
+                  >
+                    <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
                   </button>
                   <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4 text-red-400" />
@@ -199,12 +228,12 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Create Product Modal */}
+      {/* Create/Edit Product Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title="Nuevo Producto"
-        subtitle="Agrega una cerradura al inventario"
+        title={editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+        subtitle={editingProduct ? `Editando: ${editingProduct.sku}` : 'Agrega una cerradura al inventario'}
         size="lg"
         footer={
           <>
@@ -219,7 +248,7 @@ export default function ProductsPage() {
               disabled={saving || !formData.name || !formData.sku || !formData.model || !formData.price}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : 'Crear Producto'}
+              {saving ? 'Guardando...' : editingProduct ? 'Actualizar Producto' : 'Crear Producto'}
             </button>
           </>
         }
@@ -314,7 +343,7 @@ export default function ProductsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Stock Inicial
+                Stock {editingProduct ? 'Actual' : 'Inicial'}
               </label>
               <input
                 type="number"
