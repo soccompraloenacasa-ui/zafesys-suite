@@ -8,11 +8,15 @@ import {
   LogOut,
   Shield,
   Boxes,
+  UserCheck,
+  Building2,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Leads', href: '/leads', icon: Users },
+  { name: 'Clientes', href: '/customers', icon: UserCheck },
+  { name: 'Distribuidores', href: '/distributors', icon: Building2 },
   { name: 'Productos', href: '/products', icon: Package },
   { name: 'Instalaciones', href: '/installations', icon: Calendar },
   { name: 'Inventario', href: '/inventory', icon: Boxes },
