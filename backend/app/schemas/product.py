@@ -2,9 +2,13 @@
 ZAFESYS Suite - Product Schemas
 """
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from decimal import Decimal
+
+
+# Category type
+ProductCategory = Literal["gold", "silver", "black"]
 
 
 class ProductBase(BaseModel):
@@ -12,7 +16,9 @@ class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
     model: str
+    category: ProductCategory = "silver"
     price: Decimal
+    supplier_cost: Decimal = Decimal("0")
     installation_price: Decimal = Decimal("0")
     stock: int = 0
     min_stock_alert: int = 5
@@ -29,7 +35,9 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     model: Optional[str] = None
+    category: Optional[ProductCategory] = None
     price: Optional[Decimal] = None
+    supplier_cost: Optional[Decimal] = None
     installation_price: Optional[Decimal] = None
     stock: Optional[int] = None
     min_stock_alert: Optional[int] = None
@@ -54,12 +62,14 @@ class ProductResponse(ProductBase):
 
 
 class ProductListResponse(BaseModel):
-    """Simplified for list views - includes image_url for thumbnails."""
+    """Simplified for list views - includes all fields for display."""
     id: int
     sku: str
     name: str
     model: str
+    category: str = "silver"
     price: Decimal
+    supplier_cost: Decimal = Decimal("0")
     installation_price: Decimal = Decimal("0")
     stock: int
     min_stock_alert: int = 5
