@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Building2, Search, Edit2, Trash2, X, Phone, MapPin, ShoppingCart, DollarSign, Package, ChevronRight } from 'lucide-react';
-import { distributorsApi, productsApi, DistributorWithSales } from '../services/api';
+import { distributorsApi, productsApi } from '../services/api';
+import type { DistributorWithSales } from '../services/api';
 import type { Distributor, DistributorSale, Product } from '../types';
 import Modal from '../components/common/Modal';
 import { CITIES } from '../constants/cities';
