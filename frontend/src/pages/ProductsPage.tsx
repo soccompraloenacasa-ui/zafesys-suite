@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Plus, Package, Search, Edit2, Trash2, X, ImageIcon } from 'lucide-react';
+import { Plus, Package, Search, Edit2, Trash2, X, ImageIcon, Crown, Award, Star } from 'lucide-react';
 import { productsApi } from '../services/api';
-import type { Product } from '../types';
+import type { Product, ProductCategory } from '../types';
 import Modal from '../components/common/Modal';
 
 interface ProductFormData {
   name: string;
   sku: string;
   model: string;
+  category: ProductCategory;
   price: string;
+  supplier_cost: string;
   installation_price: string;
   stock: string;
   min_stock_alert: string;
@@ -21,13 +23,47 @@ const initialFormData: ProductFormData = {
   name: '',
   sku: '',
   model: '',
+  category: 'silver',
   price: '',
+  supplier_cost: '0',
   installation_price: '0',
   stock: '0',
   min_stock_alert: '5',
   description: '',
   features: '',
   image_url: '',
+};
+
+// Category configuration
+const CATEGORIES: { key: ProductCategory; label: string; icon: React.ReactNode; color: string; bgColor: string; borderColor: string }[] = [
+  { 
+    key: 'gold', 
+    label: 'Gold - Premium', 
+    icon: <Crown className="w-5 h-5" />,
+    color: 'text-amber-600',
+    bgColor: 'bg-gradient-to-r from-amber-50 to-yellow-50',
+    borderColor: 'border-amber-300'
+  },
+  { 
+    key: 'silver', 
+    label: 'Silver - Estándar', 
+    icon: <Award className="w-5 h-5" />,
+    color: 'text-gray-500',
+    bgColor: 'bg-gradient-to-r from-gray-50 to-slate-50',
+    borderColor: 'border-gray-300'
+  },
+  { 
+    key: 'black', 
+    label: 'Black - Económico', 
+    icon: <Star className="w-5 h-5" />,
+    color: 'text-gray-800',
+    bgColor: 'bg-gradient-to-r from-gray-100 to-gray-50',
+    borderColor: 'border-gray-400'
+  },
+];
+
+const getCategoryConfig = (category: ProductCategory) => {
+  return CATEGORIES.find(c => c.key === category) || CATEGORIES[1];
 };
 
 export default function ProductsPage() {
@@ -63,6 +99,14 @@ export default function ProductsPage() {
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Group products by category
+  const groupedProducts = CATEGORIES.map(cat => ({
+    ...cat,
+    products: filteredProducts
+      .filter(p => (p.category || 'silver') === cat.key)
+      .sort((a, b) => b.price - a.price) // Sort by price descending within category
+  }));
+
   const handleOpenModal = () => {
     setFormData(initialFormData);
     setEditingProduct(null);
@@ -77,7 +121,9 @@ export default function ProductsPage() {
       name: product.name,
       sku: product.sku,
       model: product.model || '',
+      category: product.category || 'silver',
       price: product.price.toString(),
+      supplier_cost: (product.supplier_cost || 0).toString(),
       installation_price: (product.installation_price || 0).toString(),
       stock: product.stock.toString(),
       min_stock_alert: (product.min_stock_alert || 5).toString(),
@@ -99,7 +145,7 @@ export default function ProductsPage() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -120,7 +166,9 @@ export default function ProductsPage() {
         name: formData.name,
         sku: formData.sku,
         model: formData.model,
+        category: formData.category,
         price: parseFloat(formData.price) || 0,
+        supplier_cost: parseFloat(formData.supplier_cost) || 0,
         installation_price: parseFloat(formData.installation_price) || 0,
         stock: parseInt(formData.stock) || 0,
         min_stock_alert: parseInt(formData.min_stock_alert) || 5,
@@ -148,6 +196,14 @@ export default function ProductsPage() {
     if (product.image_url) {
       setEnlargedImage({ url: product.image_url, name: product.name });
     }
+  };
+
+  // Calculate profit margin
+  const getProfit = (price: number, supplierCost: number) => {
+    if (!supplierCost) return null;
+    const profit = price - supplierCost;
+    const margin = (profit / price) * 100;
+    return { profit, margin };
   };
 
   return (
@@ -179,7 +235,7 @@ export default function ProductsPage() {
         />
       </div>
 
-      {/* Products Grid */}
+      {/* Products by Category */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
@@ -196,70 +252,112 @@ export default function ProductsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                {/* Product Image or Icon */}
-                {product.image_url ? (
-                  <div 
-                    onClick={() => handleImageClick(product)}
-                    className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                    title="Click para ampliar"
-                  >
-                    <img 
-                      src={product.image_url} 
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
-                      }}
-                    />
+        <div className="space-y-8">
+          {groupedProducts.map((group) => {
+            if (group.products.length === 0) return null;
+            
+            const config = getCategoryConfig(group.key);
+            
+            return (
+              <div key={group.key} className="space-y-4">
+                {/* Category Header */}
+                <div className={`flex items-center gap-3 pb-3 border-b-2 ${config.borderColor}`}>
+                  <div className={`p-2 rounded-lg ${config.bgColor} ${config.color}`}>
+                    {config.icon}
                   </div>
-                ) : (
-                  <div className="p-2 bg-cyan-50 rounded-lg">
-                    <Package className="w-6 h-6 text-cyan-500" />
+                  <div>
+                    <h2 className={`text-lg font-bold ${config.color}`}>{config.label}</h2>
+                    <p className="text-sm text-gray-500">{group.products.length} producto{group.products.length !== 1 ? 's' : ''}</p>
                   </div>
-                )}
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => handleEditProduct(product)}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Editar producto"
-                  >
-                    <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
-                  </button>
-                  <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
+                </div>
+
+                {/* Products Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {group.products.map((product) => {
+                    const profitData = getProfit(product.price, product.supplier_cost || 0);
+                    const catConfig = getCategoryConfig(product.category || 'silver');
+                    
+                    return (
+                      <div
+                        key={product.id}
+                        className={`bg-white rounded-xl p-4 border-2 ${catConfig.borderColor} shadow-sm hover:shadow-md transition-shadow`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          {/* Product Image or Icon */}
+                          {product.image_url ? (
+                            <div 
+                              onClick={() => handleImageClick(product)}
+                              className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                              title="Click para ampliar"
+                            >
+                              <img 
+                                src={product.image_url} 
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className={`p-2 rounded-lg ${catConfig.bgColor}`}>
+                              <Package className={`w-6 h-6 ${catConfig.color}`} />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => handleEditProduct(product)}
+                              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Editar producto"
+                            >
+                              <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
+                            </button>
+                            <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+                        <p className="text-xs text-gray-500 mb-3">SKU: {product.sku}</p>
+
+                        {/* Price and Stock */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-lg font-bold text-cyan-600">
+                            ${product.price.toLocaleString()}
+                          </span>
+                          <span
+                            className={`text-xs font-medium px-2 py-1 rounded ${
+                              product.stock > 10
+                                ? 'bg-green-100 text-green-700'
+                                : product.stock > 0
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            Stock: {product.stock}
+                          </span>
+                        </div>
+
+                        {/* Profit Info */}
+                        {profitData && (
+                          <div className="pt-2 border-t border-gray-100 text-xs">
+                            <div className="flex justify-between text-gray-500">
+                              <span>Costo: ${(product.supplier_cost || 0).toLocaleString()}</span>
+                              <span className="text-green-600 font-medium">
+                                Ganancia: ${profitData.profit.toLocaleString()} ({profitData.margin.toFixed(0)}%)
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
-              <p className="text-xs text-gray-500 mb-3">SKU: {product.sku}</p>
-
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-cyan-600">
-                  ${product.price.toLocaleString()}
-                </span>
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded ${
-                    product.stock > 10
-                      ? 'bg-green-100 text-green-700'
-                      : product.stock > 0
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  Stock: {product.stock}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -354,25 +452,46 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Modelo *
-            </label>
-            <input
-              type="text"
-              name="model"
-              value={formData.model}
-              onChange={handleInputChange}
-              placeholder="Ej: OS566F"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-              required
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio (COP) *
+                Modelo *
+              </label>
+              <input
+                type="text"
+                name="model"
+                value={formData.model}
+                onChange={handleInputChange}
+                placeholder="Ej: OS566F"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categoría *
+              </label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              >
+                {CATEGORIES.map(cat => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Precio Venta (COP) *
               </label>
               <input
                 type="number"
@@ -388,7 +507,22 @@ export default function ProductsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio Instalacion (COP)
+                Costo Proveedor (COP)
+              </label>
+              <input
+                type="number"
+                name="supplier_cost"
+                value={formData.supplier_cost}
+                onChange={handleInputChange}
+                placeholder="Ej: 400000"
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Precio Instalacion
               </label>
               <input
                 type="number"
@@ -401,6 +535,19 @@ export default function ProductsPage() {
               />
             </div>
           </div>
+
+          {/* Profit Preview */}
+          {formData.price && formData.supplier_cost && parseFloat(formData.supplier_cost) > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-green-700">Ganancia estimada por unidad:</span>
+                <span className="font-bold text-green-700">
+                  ${(parseFloat(formData.price) - parseFloat(formData.supplier_cost)).toLocaleString()} 
+                  ({(((parseFloat(formData.price) - parseFloat(formData.supplier_cost)) / parseFloat(formData.price)) * 100).toFixed(0)}%)
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
