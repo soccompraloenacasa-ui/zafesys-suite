@@ -9,6 +9,7 @@ interface ProductFormData {
   sku: string;
   model: string;
   price: string;
+  supplier_cost: string;
   installation_price: string;
   stock: string;
   min_stock_alert: string;
@@ -22,6 +23,7 @@ const initialFormData: ProductFormData = {
   sku: '',
   model: '',
   price: '',
+  supplier_cost: '',
   installation_price: '0',
   stock: '0',
   min_stock_alert: '5',
@@ -78,6 +80,7 @@ export default function ProductsPage() {
       sku: product.sku,
       model: product.model || '',
       price: product.price.toString(),
+      supplier_cost: ((product as any).supplier_cost || '').toString(),
       installation_price: (product.installation_price || 0).toString(),
       stock: product.stock.toString(),
       min_stock_alert: (product.min_stock_alert || 5).toString(),
@@ -110,6 +113,18 @@ export default function ProductsPage() {
     }
   };
 
+  // Calculate profit margin
+  const getProfit = () => {
+    const price = parseFloat(formData.price) || 0;
+    const cost = parseFloat(formData.supplier_cost) || 0;
+    if (price > 0 && cost > 0) {
+      const profit = price - cost;
+      const margin = (profit / price) * 100;
+      return { profit, margin };
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -121,6 +136,7 @@ export default function ProductsPage() {
         sku: formData.sku,
         model: formData.model,
         price: parseFloat(formData.price) || 0,
+        supplier_cost: formData.supplier_cost ? parseFloat(formData.supplier_cost) : undefined,
         installation_price: parseFloat(formData.installation_price) || 0,
         stock: parseInt(formData.stock) || 0,
         min_stock_alert: parseInt(formData.min_stock_alert) || 5,
@@ -149,6 +165,8 @@ export default function ProductsPage() {
       setEnlargedImage({ url: product.image_url, name: product.name });
     }
   };
+
+  const profitData = getProfit();
 
   return (
     <div className="p-6">
@@ -197,69 +215,88 @@ export default function ProductsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                {/* Product Image or Icon */}
-                {product.image_url ? (
-                  <div 
-                    onClick={() => handleImageClick(product)}
-                    className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                    title="Click para ampliar"
-                  >
-                    <img 
-                      src={product.image_url} 
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
-                      }}
-                    />
+          {filteredProducts.map((product) => {
+            const supplierCost = (product as any).supplier_cost;
+            const hasProfit = supplierCost && supplierCost > 0;
+            const profit = hasProfit ? product.price - supplierCost : 0;
+            const margin = hasProfit ? (profit / product.price) * 100 : 0;
+            
+            return (
+              <div
+                key={product.id}
+                className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  {/* Product Image or Icon */}
+                  {product.image_url ? (
+                    <div 
+                      onClick={() => handleImageClick(product)}
+                      className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                      title="Click para ampliar"
+                    >
+                      <img 
+                        src={product.image_url} 
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-cyan-50 rounded-lg">
+                      <Package className="w-6 h-6 text-cyan-500" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => handleEditProduct(product)}
+                      className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Editar producto"
+                    >
+                      <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
+                    </button>
+                    <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 className="w-4 h-4 text-red-400" />
+                    </button>
                   </div>
-                ) : (
-                  <div className="p-2 bg-cyan-50 rounded-lg">
-                    <Package className="w-6 h-6 text-cyan-500" />
+                </div>
+
+                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+                <p className="text-xs text-gray-500 mb-3">SKU: {product.sku}</p>
+
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg font-bold text-cyan-600">
+                    ${product.price.toLocaleString()}
+                  </span>
+                  <span
+                    className={`text-xs font-medium px-2 py-1 rounded ${
+                      product.stock > 10
+                        ? 'bg-green-100 text-green-700'
+                        : product.stock > 0
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    Stock: {product.stock}
+                  </span>
+                </div>
+
+                {/* Profit Info */}
+                {hasProfit && (
+                  <div className="pt-2 border-t border-gray-100 text-xs">
+                    <div className="flex justify-between text-gray-500">
+                      <span>Costo: ${supplierCost.toLocaleString()}</span>
+                      <span className="text-green-600 font-medium">
+                        +${profit.toLocaleString()} ({margin.toFixed(0)}%)
+                      </span>
+                    </div>
                   </div>
                 )}
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => handleEditProduct(product)}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Editar producto"
-                  >
-                    <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
-                  </button>
-                  <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
-                </div>
               </div>
-
-              <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
-              <p className="text-xs text-gray-500 mb-3">SKU: {product.sku}</p>
-
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-cyan-600">
-                  ${product.price.toLocaleString()}
-                </span>
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded ${
-                    product.stock > 10
-                      ? 'bg-green-100 text-green-700'
-                      : product.stock > 0
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  Stock: {product.stock}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -369,10 +406,10 @@ export default function ProductsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio (COP) *
+                Precio Venta (COP) *
               </label>
               <input
                 type="number"
@@ -388,7 +425,22 @@ export default function ProductsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio Instalacion (COP)
+                Precio Proveedor (COP)
+              </label>
+              <input
+                type="number"
+                name="supplier_cost"
+                value={formData.supplier_cost}
+                onChange={handleInputChange}
+                placeholder="Ej: 400000"
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Precio Instalacion
               </label>
               <input
                 type="number"
@@ -401,6 +453,18 @@ export default function ProductsPage() {
               />
             </div>
           </div>
+
+          {/* Profit Preview */}
+          {profitData && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-green-700">Ganancia por unidad:</span>
+                <span className="font-bold text-green-700">
+                  ${profitData.profit.toLocaleString()} ({profitData.margin.toFixed(0)}%)
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
