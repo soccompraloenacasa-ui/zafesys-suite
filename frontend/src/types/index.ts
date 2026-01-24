@@ -48,9 +48,9 @@ export interface Product {
   name: string;
   description?: string;
   model: string;
-  category: ProductCategory;
+  category?: ProductCategory;  // Optional for backward compatibility
   price: number;
-  supplier_cost: number;
+  supplier_cost?: number;  // Optional for backward compatibility
   installation_price: number;
   stock: number;
   min_stock_alert: number;
