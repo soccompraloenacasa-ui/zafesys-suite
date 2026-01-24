@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Users, Search, Edit2, Trash2, X, Phone, Mail, MapPin, FileText } from 'lucide-react';
+import { Plus, Users, Search, Edit2, Trash2, Phone, Mail, MapPin } from 'lucide-react';
 import { customersApi } from '../services/api';
 import type { Customer } from '../types';
 import Modal from '../components/common/Modal';
