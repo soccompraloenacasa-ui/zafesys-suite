@@ -1,7 +1,7 @@
 """add customers distributors and supplier_cost
 
 Revision ID: 005_add_customers_distributors
-Revises: 003_add_installations_quantity
+Revises: 003_tech_pin
 Create Date: 2026-01-24
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '005_add_customers_distributors'
-down_revision = '003_add_installations_quantity'
+down_revision = '003_tech_pin'
 branch_labels = None
 depends_on = None
 
