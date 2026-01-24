@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Package, Search, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Package, Search, Edit2, Trash2, X, ImageIcon } from 'lucide-react';
 import { productsApi } from '../services/api';
 import type { Product } from '../types';
 import Modal from '../components/common/Modal';
@@ -39,6 +39,8 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
 
   const fetchProducts = async () => {
     try {
@@ -65,6 +67,7 @@ export default function ProductsPage() {
     setFormData(initialFormData);
     setEditingProduct(null);
     setError(null);
+    setImagePreviewUrl(null);
     setIsModalOpen(true);
   };
 
@@ -82,6 +85,7 @@ export default function ProductsPage() {
       features: product.features || '',
       image_url: product.image_url || '',
     });
+    setImagePreviewUrl(product.image_url || null);
     setError(null);
     setIsModalOpen(true);
   };
@@ -91,6 +95,7 @@ export default function ProductsPage() {
     setFormData(initialFormData);
     setEditingProduct(null);
     setError(null);
+    setImagePreviewUrl(null);
   };
 
   const handleInputChange = (
@@ -98,6 +103,11 @@ export default function ProductsPage() {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Update image preview when URL changes
+    if (name === 'image_url') {
+      setImagePreviewUrl(value || null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,9 +124,9 @@ export default function ProductsPage() {
         installation_price: parseFloat(formData.installation_price) || 0,
         stock: parseInt(formData.stock) || 0,
         min_stock_alert: parseInt(formData.min_stock_alert) || 5,
-        description: formData.description || undefined,
-        features: formData.features || undefined,
-        image_url: formData.image_url || undefined,
+        description: formData.description || null,
+        features: formData.features || null,
+        image_url: formData.image_url || null,
       };
 
       if (editingProduct) {
@@ -131,6 +141,12 @@ export default function ProductsPage() {
       setError(error.response?.data?.detail || `Error al ${editingProduct ? 'actualizar' : 'crear'} el producto`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImageClick = (product: Product) => {
+    if (product.image_url) {
+      setEnlargedImage({ url: product.image_url, name: product.name });
     }
   };
 
@@ -187,9 +203,28 @@ export default function ProductsPage() {
               className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="p-2 bg-cyan-50 rounded-lg">
-                  <Package className="w-6 h-6 text-cyan-500" />
-                </div>
+                {/* Product Image or Icon */}
+                {product.image_url ? (
+                  <div 
+                    onClick={() => handleImageClick(product)}
+                    className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                    title="Click para ampliar"
+                  >
+                    <img 
+                      src={product.image_url} 
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-cyan-50 rounded-lg">
+                    <Package className="w-6 h-6 text-cyan-500" />
+                  </div>
+                )}
                 <div className="flex items-center gap-1">
                   <button 
                     onClick={() => handleEditProduct(product)}
@@ -225,6 +260,33 @@ export default function ProductsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Enlarged Image Modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh] w-full">
+            <button
+              onClick={() => setEnlargedImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div className="bg-white rounded-xl overflow-hidden">
+              <img 
+                src={enlargedImage.url} 
+                alt={enlargedImage.name}
+                className="w-full h-auto max-h-[80vh] object-contain"
+              />
+              <div className="p-4 bg-gray-50 border-t">
+                <p className="font-semibold text-gray-900">{enlargedImage.name}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -410,6 +472,41 @@ export default function ProductsPage() {
               placeholder="https://..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             />
+            {/* Image Preview */}
+            {imagePreviewUrl && (
+              <div className="mt-2 relative">
+                <div className="w-full h-32 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <img 
+                    src={imagePreviewUrl} 
+                    alt="Preview"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent) {
+                        parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><span>Error cargando imagen</span></div>';
+                      }
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, image_url: '' }));
+                    setImagePreviewUrl(null);
+                  }}
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {!imagePreviewUrl && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                <ImageIcon className="w-4 h-4" />
+                <span>La imagen aparecerá aquí al pegar una URL válida</span>
+              </div>
+            )}
           </div>
         </form>
       </Modal>
