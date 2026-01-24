@@ -13,6 +13,7 @@ class ProductBase(BaseModel):
     description: Optional[str] = None
     model: str
     price: Decimal
+    supplier_cost: Optional[Decimal] = None  # Precio proveedor
     installation_price: Decimal = Decimal("0")
     stock: int = 0
     min_stock_alert: int = 5
@@ -30,6 +31,7 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     model: Optional[str] = None
     price: Optional[Decimal] = None
+    supplier_cost: Optional[Decimal] = None
     installation_price: Optional[Decimal] = None
     stock: Optional[int] = None
     min_stock_alert: Optional[int] = None
@@ -60,6 +62,7 @@ class ProductListResponse(BaseModel):
     name: str
     model: str
     price: Decimal
+    supplier_cost: Optional[Decimal] = None
     installation_price: Decimal = Decimal("0")
     stock: int
     min_stock_alert: int = 5
