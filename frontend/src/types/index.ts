@@ -40,17 +40,13 @@ export interface KanbanData {
 }
 
 // Product types
-export type ProductCategory = 'gold' | 'silver' | 'black';
-
 export interface Product {
   id: number;
   sku: string;
   name: string;
   description?: string;
   model: string;
-  category?: ProductCategory;  // Optional for backward compatibility
   price: number;
-  supplier_cost?: number;  // Optional for backward compatibility
   installation_price: number;
   stock: number;
   min_stock_alert: number;
