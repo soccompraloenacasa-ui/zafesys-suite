@@ -16,14 +16,9 @@ class Product(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     model = Column(String(100), nullable=False)  # e.g., OS566F, OS709TYFA
-    
-    # Category for display organization (added via migration 004)
-    # Will be NULL until migration runs, defaults to 'silver' in schema
-    category = Column(String(20), nullable=True)  # gold, silver, black
 
     # Pricing
-    price = Column(Numeric(10, 2), nullable=False)  # Precio de venta
-    supplier_cost = Column(Numeric(10, 2), nullable=True)  # Costo del proveedor (added via migration 004)
+    price = Column(Numeric(10, 2), nullable=False)
     installation_price = Column(Numeric(10, 2), default=0)
 
     # Inventory
