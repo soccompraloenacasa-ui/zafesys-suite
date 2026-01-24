@@ -7,6 +7,8 @@ import ProductsPage from './pages/ProductsPage';
 import InstallationsPage from './pages/InstallationsPage';
 import TechniciansPage from './pages/TechniciansPage';
 import InventoryPage from './pages/InventoryPage';
+import CustomersPage from './pages/CustomersPage';
+import DistributorsPage from './pages/DistributorsPage';
 
 // Tech App Pages
 import TechLoginPage from './pages/tech/TechLoginPage';
@@ -64,6 +66,8 @@ function App() {
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/leads" element={<LeadsPage />} />
+                <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/distributors" element={<DistributorsPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/installations" element={<InstallationsPage />} />
                 <Route path="/technicians" element={<TechniciansPage />} />
