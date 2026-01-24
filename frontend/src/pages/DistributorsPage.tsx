@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Building2, Search, Edit2, Trash2, X, Phone, MapPin, ShoppingCart, DollarSign, Package, ChevronRight } from 'lucide-react';
-import { distributorsApi, productsApi } from '../services/api';
+import { distributorsApi, productsApi, DistributorWithSales } from '../services/api';
 import type { Distributor, DistributorSale, Product } from '../types';
 import Modal from '../components/common/Modal';
 import { CITIES } from '../constants/cities';
@@ -64,8 +64,8 @@ export default function DistributorsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingDistributor, setEditingDistributor] = useState<Distributor | null>(null);
   
-  // Detail modal
-  const [selectedDistributor, setSelectedDistributor] = useState<Distributor | null>(null);
+  // Detail modal - use DistributorWithSales for full detail
+  const [selectedDistributor, setSelectedDistributor] = useState<DistributorWithSales | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [distributorSales, setDistributorSales] = useState<DistributorSale[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -197,7 +197,6 @@ export default function DistributorsPage() {
 
   // Detail modal handlers
   const handleOpenDetail = async (distributor: Distributor) => {
-    setSelectedDistributor(distributor);
     setIsDetailModalOpen(true);
     setLoadingDetail(true);
     
