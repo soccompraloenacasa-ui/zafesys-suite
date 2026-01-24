@@ -1,16 +1,9 @@
 """
 ZAFESYS Suite - Product Model
 """
-from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime
 from sqlalchemy.sql import func
 from app.database import Base
-import enum
-
-
-class ProductCategory(str, enum.Enum):
-    gold = "gold"
-    silver = "silver"
-    black = "black"
 
 
 class Product(Base):
@@ -24,12 +17,13 @@ class Product(Base):
     description = Column(Text, nullable=True)
     model = Column(String(100), nullable=False)  # e.g., OS566F, OS709TYFA
     
-    # Category for display organization
-    category = Column(String(20), default="silver")  # gold, silver, black
+    # Category for display organization (added via migration 004)
+    # Will be NULL until migration runs, defaults to 'silver' in schema
+    category = Column(String(20), nullable=True)  # gold, silver, black
 
     # Pricing
     price = Column(Numeric(10, 2), nullable=False)  # Precio de venta
-    supplier_cost = Column(Numeric(10, 2), default=0)  # Costo del proveedor
+    supplier_cost = Column(Numeric(10, 2), nullable=True)  # Costo del proveedor (added via migration 004)
     installation_price = Column(Numeric(10, 2), default=0)
 
     # Inventory
