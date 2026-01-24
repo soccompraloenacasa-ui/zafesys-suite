@@ -1,7 +1,7 @@
-"""Add customers, distributors and supplier_cost
+"""add customers distributors and supplier_cost
 
-Revision ID: 005
-Revises: 004
+Revision ID: 005_add_customers_distributors
+Revises: 003_add_installations_quantity
 Create Date: 2026-01-24
 
 """
@@ -10,14 +10,14 @@ import sqlalchemy as sa
 
 
 # revision identifiers
-revision = '005'
-down_revision = '004'
+revision = '005_add_customers_distributors'
+down_revision = '003_add_installations_quantity'
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Add supplier_cost to products
+    # Add supplier_cost to products table
     op.add_column('products', sa.Column('supplier_cost', sa.Numeric(12, 2), nullable=True))
     
     # Create customers table
@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.Column('city', sa.String(100), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
         sa.Column('lead_id', sa.Integer(), nullable=True),
-        sa.Column('is_active', sa.Boolean(), default=True),
+        sa.Column('is_active', sa.Boolean(), server_default='true'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id'),
@@ -56,8 +56,8 @@ def upgrade() -> None:
         sa.Column('zone', sa.String(100), nullable=True),
         sa.Column('contact_person', sa.String(255), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
-        sa.Column('discount_percentage', sa.Numeric(5, 2), default=0),
-        sa.Column('is_active', sa.Boolean(), default=True),
+        sa.Column('discount_percentage', sa.Numeric(5, 2), server_default='0'),
+        sa.Column('is_active', sa.Boolean(), server_default='true'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id')
@@ -75,8 +75,8 @@ def upgrade() -> None:
         sa.Column('total_price', sa.Numeric(12, 2), nullable=False),
         sa.Column('sale_date', sa.Date(), nullable=False),
         sa.Column('invoice_number', sa.String(100), nullable=True),
-        sa.Column('payment_status', sa.String(20), default='pendiente'),
-        sa.Column('amount_paid', sa.Numeric(12, 2), default=0),
+        sa.Column('payment_status', sa.String(20), server_default='pendiente'),
+        sa.Column('amount_paid', sa.Numeric(12, 2), server_default='0'),
         sa.Column('notes', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
