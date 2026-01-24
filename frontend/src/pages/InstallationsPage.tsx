@@ -20,6 +20,12 @@ const paymentLabels: Record<string, { label: string; color: string }> = {
   pagado: { label: 'Pagado', color: 'bg-green-100 text-green-700' },
 };
 
+// Opciones de precio de instalación
+const INSTALLATION_PRICES = [
+  { value: '189000', label: '$189,000 - Instalación estándar' },
+  { value: '250000', label: '$250,000 - Instalación + desplazamiento' },
+];
+
 interface InstallationFormData {
   lead_id: string;
   product_id: string;
@@ -30,6 +36,7 @@ interface InstallationFormData {
   address: string;
   city: string;
   address_notes: string;
+  installation_price: string;
   total_price: string;
   customer_notes: string;
 }
@@ -44,6 +51,7 @@ const initialFormData: InstallationFormData = {
   address: '',
   city: '',
   address_notes: '',
+  installation_price: '189000',
   total_price: '',
   customer_notes: '',
 };
@@ -135,6 +143,23 @@ export default function InstallationsPage() {
   const weekDays = getWeekDays();
   const today = new Date();
 
+  // Calculate total price helper
+  const calculateTotalPrice = (
+    productId: string,
+    quantity: string,
+    installationPrice: string,
+    productsList: Product[]
+  ): string => {
+    if (!productId || !quantity || !installationPrice) return '';
+    
+    const selectedProduct = productsList.find((p) => p.id === parseInt(productId));
+    if (!selectedProduct) return '';
+    
+    const productTotal = selectedProduct.price * parseInt(quantity);
+    const installTotal = parseInt(installationPrice);
+    return (productTotal + installTotal).toString();
+  };
+
   // Detail modal handlers
   const handleOpenDetail = async (installation: Installation) => {
     setSelectedInstallation(installation as InstallationDetail);
@@ -220,8 +245,7 @@ export default function InstallationsPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
+    
     // Auto-fill address when lead is selected
     if (name === 'lead_id' && value) {
       const selectedLead = leads.find((l) => l.id === parseInt(value));
@@ -232,26 +256,27 @@ export default function InstallationsPage() {
           address: selectedLead.address || '',
           city: selectedLead.city || '',
         }));
+        return;
       }
     }
 
-    // Auto-calculate price when product/quantity changes
-    if (name === 'product_id' || name === 'quantity') {
-      const productId = name === 'product_id' ? value : formData.product_id;
-      const quantity = name === 'quantity' ? value : formData.quantity;
+    // Auto-calculate price when product, quantity or installation price changes
+    if (name === 'product_id' || name === 'quantity' || name === 'installation_price') {
+      const newProductId = name === 'product_id' ? value : formData.product_id;
+      const newQuantity = name === 'quantity' ? value : formData.quantity;
+      const newInstallPrice = name === 'installation_price' ? value : formData.installation_price;
 
-      if (productId && quantity) {
-        const selectedProduct = products.find((p) => p.id === parseInt(productId));
-        if (selectedProduct) {
-          const totalPrice = (selectedProduct.price + selectedProduct.installation_price) * parseInt(quantity);
-          setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-            total_price: totalPrice.toString(),
-          }));
-        }
-      }
+      const totalPrice = calculateTotalPrice(newProductId, newQuantity, newInstallPrice, products);
+
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        total_price: totalPrice,
+      }));
+      return;
     }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -284,6 +309,11 @@ export default function InstallationsPage() {
       setSaving(false);
     }
   };
+
+  // Get selected product for price display
+  const selectedProduct = formData.product_id 
+    ? products.find((p) => p.id === parseInt(formData.product_id)) 
+    : null;
 
   return (
     <div className="p-6">
@@ -786,23 +816,72 @@ export default function InstallationsPage() {
               />
             </div>
 
-            {/* Price */}
+            {/* Installation Price Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio Total (COP) *
+                Precio de Instalación *
+              </label>
+              <select
+                name="installation_price"
+                value={formData.installation_price}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              >
+                {INSTALLATION_PRICES.map((price) => (
+                  <option key={price.value} value={price.value}>
+                    {price.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Price Breakdown */}
+            {selectedProduct && (
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      {selectedProduct.name} x {formData.quantity}
+                    </span>
+                    <span className="font-medium">
+                      ${(selectedProduct.price * parseInt(formData.quantity || '1')).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Instalación</span>
+                    <span className="font-medium">
+                      ${parseInt(formData.installation_price).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-cyan-200">
+                    <span className="font-semibold text-cyan-900">Total</span>
+                    <span className="font-bold text-cyan-700 text-lg">
+                      ${parseInt(formData.total_price || '0').toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Total Price (editable for discounts) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Precio Total Final (COP) *
               </label>
               <input
                 type="number"
                 name="total_price"
                 value={formData.total_price}
                 onChange={handleInputChange}
-                placeholder="Se calcula automaticamente"
+                placeholder="0"
                 min="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                Incluye producto + instalacion. Ajustar si aplica descuento.
+                Se calcula automáticamente. Puedes ajustar si aplica descuento.
               </p>
             </div>
 
