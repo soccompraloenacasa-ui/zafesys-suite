@@ -1,76 +1,128 @@
-"""Startup script that handles migrations and starts the server"""
+"""Startup script that creates missing tables and starts the server"""
 import os
 import sys
 
-def setup_alembic_version():
-    """Ensure alembic_version table is set correctly for existing databases"""
+def create_missing_tables():
+    """Create customers, distributors tables if they don't exist"""
     from sqlalchemy import create_engine, text
     
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
-        print("No DATABASE_URL found, skipping migration setup")
+        print("No DATABASE_URL found, skipping")
         return
     
-    print(f"Connecting to database...")
+    print("Connecting to database...")
     engine = create_engine(database_url)
     
     with engine.connect() as conn:
-        # Check if users table exists (means DB has existing schema)
+        # Check if customers table already exists
         result = conn.execute(text("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
-                WHERE table_name = 'users'
+                WHERE table_name = 'customers'
             );
         """))
-        users_exists = result.scalar()
-        print(f"Users table exists: {users_exists}")
+        customers_exists = result.scalar()
         
-        if users_exists:
-            # DB has existing data - force set version to 003_tech_pin
-            print("Existing database detected, setting alembic version...")
-            
-            # Drop and recreate alembic_version to ensure clean state
-            conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+        if customers_exists:
+            print("Tables already exist, skipping creation")
+            return
+        
+        print("Creating missing tables...")
+        
+        # Add supplier_cost to products if it doesn't exist
+        try:
             conn.execute(text("""
-                CREATE TABLE alembic_version (
-                    version_num VARCHAR(32) NOT NULL,
-                    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
-                );
+                ALTER TABLE products ADD COLUMN IF NOT EXISTS supplier_cost NUMERIC(12, 2);
             """))
-            conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('003_tech_pin');"))
-            conn.commit()
-            
-            # Verify
-            result = conn.execute(text("SELECT version_num FROM alembic_version"))
-            version = result.scalar()
-            print(f"Set alembic_version to: {version}")
-        else:
-            print("Fresh database, will run all migrations from scratch")
+            print("Added supplier_cost column to products")
+        except Exception as e:
+            print(f"supplier_cost column: {e}")
+        
+        # Create customers table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS customers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) NOT NULL,
+                email VARCHAR(255),
+                document_type VARCHAR(20),
+                document_number VARCHAR(50),
+                address VARCHAR(500),
+                city VARCHAR(100),
+                notes TEXT,
+                lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+        """))
+        print("Created customers table")
+        
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customers_id ON customers(id);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customers_phone ON customers(phone);"))
+        
+        # Create distributors table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS distributors (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                company_name VARCHAR(255),
+                nit VARCHAR(50),
+                phone VARCHAR(50) NOT NULL,
+                email VARCHAR(255),
+                address VARCHAR(500),
+                city VARCHAR(100),
+                zone VARCHAR(100),
+                contact_person VARCHAR(255),
+                notes TEXT,
+                discount_percentage NUMERIC(5, 2) DEFAULT 0,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+        """))
+        print("Created distributors table")
+        
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_distributors_id ON distributors(id);"))
+        
+        # Create distributor_sales table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS distributor_sales (
+                id SERIAL PRIMARY KEY,
+                distributor_id INTEGER NOT NULL REFERENCES distributors(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                quantity INTEGER NOT NULL,
+                unit_price NUMERIC(12, 2) NOT NULL,
+                total_price NUMERIC(12, 2) NOT NULL,
+                sale_date DATE NOT NULL,
+                invoice_number VARCHAR(100),
+                payment_status VARCHAR(20) DEFAULT 'pendiente',
+                amount_paid NUMERIC(12, 2) DEFAULT 0,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+        """))
+        print("Created distributor_sales table")
+        
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_distributor_sales_id ON distributor_sales(id);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_distributor_sales_distributor_id ON distributor_sales(distributor_id);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_distributor_sales_sale_date ON distributor_sales(sale_date);"))
+        
+        conn.commit()
+        print("All tables created successfully!")
 
 if __name__ == "__main__":
     print("=== ZAFESYS Startup Script ===")
     
-    # Setup alembic version first
     try:
-        setup_alembic_version()
+        create_missing_tables()
     except Exception as e:
-        print(f"Error in setup_alembic_version: {e}")
+        print(f"Error creating tables: {e}")
         import traceback
         traceback.print_exc()
     
-    # Run alembic upgrade
-    print("\n=== Running Alembic Migrations ===")
-    import subprocess
-    result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True)
-    print(result.stdout)
-    if result.stderr:
-        print(result.stderr)
-    
-    if result.returncode != 0:
-        print(f"Alembic upgrade failed with code {result.returncode}")
-        sys.exit(1)
-    
     print("\n=== Starting Server ===")
-    # Start the server
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
