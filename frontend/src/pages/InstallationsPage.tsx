@@ -3,6 +3,7 @@ import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, C
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
+import { CITIES } from '../constants/cities';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pendiente: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-700' },
@@ -41,7 +42,7 @@ const initialFormData: InstallationFormData = {
   scheduled_date: '',
   scheduled_time: '',
   address: '',
-  city: 'Bogota',
+  city: '',
   address_notes: '',
   total_price: '',
   customer_notes: '',
@@ -229,7 +230,7 @@ export default function InstallationsPage() {
           ...prev,
           lead_id: value,
           address: selectedLead.address || '',
-          city: selectedLead.city || 'Bogota',
+          city: selectedLead.city || '',
         }));
       }
     }
@@ -267,7 +268,7 @@ export default function InstallationsPage() {
         scheduled_date: formData.scheduled_date || undefined,
         scheduled_time: formData.scheduled_time || undefined,
         address: formData.address,
-        city: formData.city || 'Bogota',
+        city: formData.city || undefined,
         address_notes: formData.address_notes || undefined,
         total_price: parseFloat(formData.total_price) || 0,
         customer_notes: formData.customer_notes || undefined,
@@ -755,14 +756,19 @@ export default function InstallationsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ciudad
                 </label>
-                <input
-                  type="text"
+                <select
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  placeholder="Bogota"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
+                >
+                  <option value="">Seleccionar...</option>
+                  {CITIES.map((city) => (
+                    <option key={city.value} value={city.label}>
+                      {city.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
