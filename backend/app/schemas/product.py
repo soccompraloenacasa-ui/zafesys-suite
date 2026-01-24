@@ -54,14 +54,17 @@ class ProductResponse(ProductBase):
 
 
 class ProductListResponse(BaseModel):
-    """Simplified for list views."""
+    """Simplified for list views - includes image_url for thumbnails."""
     id: int
     sku: str
     name: str
     model: str
     price: Decimal
+    installation_price: Decimal = Decimal("0")
     stock: int
+    min_stock_alert: int = 5
     is_active: bool
+    image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
