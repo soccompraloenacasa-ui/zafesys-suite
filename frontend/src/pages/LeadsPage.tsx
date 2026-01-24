@@ -13,6 +13,7 @@ import LeadCard from '../components/leads/LeadCard';
 import LeadDetailModal from '../components/leads/LeadDetailModal';
 import Modal from '../components/common/Modal';
 import { leadsApi, productsApi } from '../services/api';
+import { CITIES } from '../constants/cities';
 import type { KanbanData, LeadKanban, LeadStatus, LeadSource, Product } from '../types';
 
 const columns: { id: LeadStatus; title: string; color: string }[] = [
@@ -464,14 +465,19 @@ export default function LeadsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ciudad
               </label>
-              <input
-                type="text"
+              <select
                 name="city"
                 value={formData.city}
                 onChange={handleInputChange}
-                placeholder="Bogotá, Medellín..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-              />
+              >
+                <option value="">Seleccionar ciudad...</option>
+                {CITIES.map((city) => (
+                  <option key={city.value} value={city.label}>
+                    {city.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
