@@ -1,14 +1,10 @@
 """
 ZAFESYS Suite - Product Schemas
 """
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime
 from decimal import Decimal
-
-
-# Category type
-ProductCategory = Literal["gold", "silver", "black"]
 
 
 class ProductBase(BaseModel):
@@ -16,9 +12,7 @@ class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
     model: str
-    category: Optional[ProductCategory] = "silver"
     price: Decimal
-    supplier_cost: Optional[Decimal] = Decimal("0")
     installation_price: Decimal = Decimal("0")
     stock: int = 0
     min_stock_alert: int = 5
@@ -35,9 +29,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     model: Optional[str] = None
-    category: Optional[ProductCategory] = None
     price: Optional[Decimal] = None
-    supplier_cost: Optional[Decimal] = None
     installation_price: Optional[Decimal] = None
     stock: Optional[int] = None
     min_stock_alert: Optional[int] = None
@@ -51,21 +43,9 @@ class ProductStockUpdate(BaseModel):
     stock: int
 
 
-class ProductResponse(BaseModel):
+class ProductResponse(ProductBase):
     id: int
-    sku: str
-    name: str
-    description: Optional[str] = None
-    model: str
-    category: Optional[str] = "silver"
-    price: Decimal
-    supplier_cost: Optional[Decimal] = Decimal("0")
-    installation_price: Decimal = Decimal("0")
-    stock: int = 0
-    min_stock_alert: int = 5
-    features: Optional[str] = None
-    image_url: Optional[str] = None
-    is_active: bool = True
+    is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -74,18 +54,16 @@ class ProductResponse(BaseModel):
 
 
 class ProductListResponse(BaseModel):
-    """Simplified for list views - includes all fields for display."""
+    """Simplified for list views - includes image_url for thumbnails."""
     id: int
     sku: str
     name: str
     model: str
-    category: Optional[str] = "silver"
     price: Decimal
-    supplier_cost: Optional[Decimal] = Decimal("0")
     installation_price: Decimal = Decimal("0")
-    stock: int = 0
+    stock: int
     min_stock_alert: int = 5
-    is_active: bool = True
+    is_active: bool
     image_url: Optional[str] = None
 
     class Config:
