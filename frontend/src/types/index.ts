@@ -47,6 +47,7 @@ export interface Product {
   description?: string;
   model: string;
   price: number;
+  supplier_cost?: number;
   installation_price: number;
   stock: number;
   min_stock_alert: number;
@@ -54,6 +55,63 @@ export interface Product {
   image_url?: string;
   is_active: boolean;
   created_at: string;
+}
+
+// Customer types
+export interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+  document_type?: string;
+  document_number?: string;
+  address?: string;
+  city?: string;
+  notes?: string;
+  lead_id?: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+// Distributor types
+export interface Distributor {
+  id: number;
+  name: string;
+  company_name?: string;
+  nit?: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  zone?: string;
+  contact_person?: string;
+  notes?: string;
+  discount_percentage: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+  total_sales?: number;
+  total_units?: number;
+}
+
+export interface DistributorSale {
+  id: number;
+  distributor_id: number;
+  product_id: number;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  sale_date: string;
+  invoice_number?: string;
+  payment_status: string;
+  amount_paid: number;
+  notes?: string;
+  product_name?: string;
+  product_sku?: string;
+  distributor_name?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 // Technician types
