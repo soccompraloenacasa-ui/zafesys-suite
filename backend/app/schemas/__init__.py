@@ -22,6 +22,16 @@ from app.schemas.installation import (
     InstallationResponse, InstallationStatusUpdate, InstallationPaymentUpdate,
     InstallationCompleteRequest, InstallationWithDetails, TechnicianDaySchedule
 )
+from app.schemas.customer import (
+    CustomerBase, CustomerCreate, CustomerUpdate,
+    CustomerResponse, CustomerListResponse
+)
+from app.schemas.distributor import (
+    DistributorBase, DistributorCreate, DistributorUpdate,
+    DistributorResponse, DistributorListResponse, DistributorWithSales,
+    DistributorSaleBase, DistributorSaleCreate, DistributorSaleUpdate,
+    DistributorSaleResponse, DistributorSaleListResponse
+)
 
 __all__ = [
     # User
@@ -40,4 +50,12 @@ __all__ = [
     "InstallationBase", "InstallationCreate", "InstallationUpdate",
     "InstallationResponse", "InstallationStatusUpdate", "InstallationPaymentUpdate",
     "InstallationCompleteRequest", "InstallationWithDetails", "TechnicianDaySchedule",
+    # Customer
+    "CustomerBase", "CustomerCreate", "CustomerUpdate",
+    "CustomerResponse", "CustomerListResponse",
+    # Distributor
+    "DistributorBase", "DistributorCreate", "DistributorUpdate",
+    "DistributorResponse", "DistributorListResponse", "DistributorWithSales",
+    "DistributorSaleBase", "DistributorSaleCreate", "DistributorSaleUpdate",
+    "DistributorSaleResponse", "DistributorSaleListResponse",
 ]
