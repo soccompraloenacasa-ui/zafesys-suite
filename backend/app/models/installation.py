@@ -39,6 +39,9 @@ class Installation(Base):
     # Lead/Customer reference
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
     lead = relationship("Lead", foreign_keys=[lead_id])
+    
+    # Customer reference (optional - for converted leads)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
 
     # Product
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
