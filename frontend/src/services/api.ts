@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken } from '../types';
+import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken, Customer, Distributor, DistributorSale } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
@@ -104,6 +104,78 @@ export const productsApi = {
   updateStock: async (id: number, stock: number): Promise<Product> => {
     const { data } = await api.patch(`/products/${id}/stock`, { stock });
     return data;
+  },
+};
+
+// Customers
+export const customersApi = {
+  getAll: async (): Promise<Customer[]> => {
+    const { data } = await api.get('/customers/');
+    return data;
+  },
+  getById: async (id: number): Promise<Customer> => {
+    const { data } = await api.get(`/customers/${id}`);
+    return data;
+  },
+  create: async (customer: Partial<Customer>): Promise<Customer> => {
+    const { data } = await api.post('/customers/', customer);
+    return data;
+  },
+  update: async (id: number, customer: Partial<Customer>): Promise<Customer> => {
+    const { data } = await api.put(`/customers/${id}`, customer);
+    return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/customers/${id}`);
+  },
+  createFromLead: async (leadId: number): Promise<Customer> => {
+    const { data } = await api.post(`/customers/from-lead/${leadId}`);
+    return data;
+  },
+};
+
+// Distributors
+export interface DistributorWithSales extends Distributor {
+  sales: DistributorSale[];
+  total_sales_amount: number;
+  total_units_sold: number;
+}
+
+export const distributorsApi = {
+  getAll: async (): Promise<Distributor[]> => {
+    const { data } = await api.get('/distributors/');
+    return data;
+  },
+  getById: async (id: number): Promise<DistributorWithSales> => {
+    const { data } = await api.get(`/distributors/${id}`);
+    return data;
+  },
+  create: async (distributor: Partial<Distributor>): Promise<Distributor> => {
+    const { data } = await api.post('/distributors/', distributor);
+    return data;
+  },
+  update: async (id: number, distributor: Partial<Distributor>): Promise<Distributor> => {
+    const { data } = await api.put(`/distributors/${id}`, distributor);
+    return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/distributors/${id}`);
+  },
+  // Sales
+  getAllSales: async (filters?: { distributor_id?: number; product_id?: number; from_date?: string; to_date?: string }): Promise<DistributorSale[]> => {
+    const { data } = await api.get('/distributors/sales/all', { params: filters });
+    return data;
+  },
+  createSale: async (distributorId: number, sale: Partial<DistributorSale>): Promise<DistributorSale> => {
+    const { data } = await api.post(`/distributors/${distributorId}/sales`, sale);
+    return data;
+  },
+  updateSale: async (saleId: number, sale: Partial<DistributorSale>): Promise<DistributorSale> => {
+    const { data } = await api.put(`/distributors/sales/${saleId}`, sale);
+    return data;
+  },
+  deleteSale: async (saleId: number): Promise<void> => {
+    await api.delete(`/distributors/sales/${saleId}`);
   },
 };
 
