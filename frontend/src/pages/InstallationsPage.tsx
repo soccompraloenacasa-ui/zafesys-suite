@@ -316,7 +316,7 @@ export default function InstallationsPage() {
         address: installation.address || '',
         city: installation.city || '',
         address_notes: installation.address_notes || '',
-        installation_price: '189000', // Default, we'll calculate from total
+        installation_price: '189000', // Default
         discount_type: 'none',
         discount_value: '',
         total_price: installation.total_price?.toString() || '',
@@ -1005,7 +1005,7 @@ export default function InstallationsPage() {
                   name="lead_id"
                   value={formData.lead_id}
                   onChange={handleInputChange}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none disabled:bg-gray-100"
                   required
                   disabled={isEditMode} // Cannot change lead in edit mode
                 >
@@ -1027,6 +1027,9 @@ export default function InstallationsPage() {
                   </button>
                 )}
               </div>
+              {isEditMode && (
+                <p className="text-xs text-gray-500 mt-1">El cliente no se puede cambiar</p>
+              )}
             </div>
 
             {/* Product Selection */}
@@ -1041,7 +1044,6 @@ export default function InstallationsPage() {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
-                  disabled={isEditMode} // Cannot change product in edit mode (affects stock)
                 >
                   <option value="">Seleccionar producto...</option>
                   {products.map((product) => (
@@ -1063,7 +1065,6 @@ export default function InstallationsPage() {
                   onChange={handleInputChange}
                   min="1"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  disabled={isEditMode} // Cannot change quantity in edit mode (affects stock)
                 />
               </div>
             </div>
@@ -1168,73 +1169,69 @@ export default function InstallationsPage() {
               />
             </div>
 
-            {/* Installation Price Selection - Only show for new installations */}
-            {!isEditMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio de Instalación *
-                </label>
+            {/* Installation Price Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Precio de Instalación *
+              </label>
+              <select
+                name="installation_price"
+                value={formData.installation_price}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              >
+                {INSTALLATION_PRICES.map((price) => (
+                  <option key={price.value} value={price.value}>
+                    {price.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Discount Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descuento
+              </label>
+              <div className="flex gap-2">
                 <select
-                  name="installation_price"
-                  value={formData.installation_price}
+                  name="discount_type"
+                  value={formData.discount_type}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  required
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                 >
-                  {INSTALLATION_PRICES.map((price) => (
-                    <option key={price.value} value={price.value}>
-                      {price.label}
-                    </option>
-                  ))}
+                  <option value="none">Sin descuento</option>
+                  <option value="percentage">Porcentaje (%)</option>
+                  <option value="value">Valor fijo ($)</option>
                 </select>
-              </div>
-            )}
-
-            {/* Discount Section - Only show for new installations */}
-            {!isEditMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Descuento
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    name="discount_type"
-                    value={formData.discount_type}
-                    onChange={handleInputChange}
-                    className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  >
-                    <option value="none">Sin descuento</option>
-                    <option value="percentage">Porcentaje (%)</option>
-                    <option value="value">Valor fijo ($)</option>
-                  </select>
-                  
-                  {formData.discount_type !== 'none' && (
-                    <div className="flex-1 relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                        {formData.discount_type === 'percentage' ? (
-                          <Percent className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <DollarSign className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                      <input
-                        type="number"
-                        name="discount_value"
-                        value={formData.discount_value}
-                        onChange={handleInputChange}
-                        placeholder={formData.discount_type === 'percentage' ? 'Ej: 10' : 'Ej: 50000'}
-                        min="0"
-                        max={formData.discount_type === 'percentage' ? '100' : undefined}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                      />
+                
+                {formData.discount_type !== 'none' && (
+                  <div className="flex-1 relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      {formData.discount_type === 'percentage' ? (
+                        <Percent className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                      )}
                     </div>
-                  )}
-                </div>
+                    <input
+                      type="number"
+                      name="discount_value"
+                      value={formData.discount_value}
+                      onChange={handleInputChange}
+                      placeholder={formData.discount_type === 'percentage' ? 'Ej: 10' : 'Ej: 50000'}
+                      min="0"
+                      max={formData.discount_type === 'percentage' ? '100' : undefined}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Price Breakdown - Only show for new installations */}
-            {!isEditMode && selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
+            {/* Price Breakdown */}
+            {selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
               <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
                 <div className="space-y-2 text-sm">
@@ -1281,29 +1278,6 @@ export default function InstallationsPage() {
                     </span>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Edit mode: Show current total price */}
-            {isEditMode && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-gray-700">Precio Total</span>
-                  <span className="text-xl font-bold text-cyan-600">
-                    ${parseInt(formData.total_price || '0').toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Para cambiar el precio total, edita el campo directamente:
-                </p>
-                <input
-                  type="number"
-                  name="total_price"
-                  value={formData.total_price}
-                  onChange={handleInputChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  min="0"
-                />
               </div>
             )}
 
