@@ -213,8 +213,6 @@ export default function CustomersPage() {
         
         // If including sale info, create an installation record
         if (saleData.include_sale && saleData.product_id && saleBreakdown) {
-          const installationType = INSTALLATION_TYPES.find(t => t.value === saleData.installation_type);
-          
           // Build sale details for notes
           const saleDetails = [
             `[VENTA: ${saleData.sale_date}]`,
@@ -229,7 +227,7 @@ export default function CustomersPage() {
 
           // Create installation record
           const installationData = {
-            lead_id: customer.id, // We use customer id as lead_id for now
+            lead_id: customer.id,
             customer_id: customer.id,
             product_id: parseInt(saleData.product_id),
             quantity: parseInt(saleData.quantity) || 1,
@@ -250,7 +248,6 @@ export default function CustomersPage() {
             await installationsApi.create(installationData);
           } catch (installError) {
             console.error('Error creating installation:', installError);
-            // Don't fail the whole operation, just log it
           }
         }
       }
