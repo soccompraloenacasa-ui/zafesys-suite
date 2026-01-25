@@ -17,6 +17,8 @@ import {
   Banknote,
   Send,
   AlertTriangle,
+  X,
+  ZoomIn,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 import Modal from '../../components/common/Modal';
@@ -58,6 +60,7 @@ export default function TechInstallationPage() {
   const [installation, setInstallation] = useState<TechInstallation | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [showEnlargedImage, setShowEnlargedImage] = useState(false);
 
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -244,9 +247,12 @@ export default function TechInstallationPage() {
             <span className="font-bold text-sm uppercase">Verifica el producto antes de salir</span>
           </div>
           
-          {/* Imagen del producto - GRANDE */}
+          {/* Imagen del producto - GRANDE y TOCABLE */}
           {installation.product_image ? (
-            <div className="bg-gray-100 p-4">
+            <div 
+              className="bg-gray-100 p-4 cursor-pointer relative"
+              onClick={() => setShowEnlargedImage(true)}
+            >
               <img
                 src={installation.product_image}
                 alt={installation.product_name}
@@ -255,6 +261,10 @@ export default function TechInstallationPage() {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
+              <div className="absolute bottom-6 right-6 bg-cyan-500 text-white px-3 py-1.5 rounded-full flex items-center gap-1 text-sm font-medium shadow-lg">
+                <ZoomIn className="w-4 h-4" />
+                Ampliar
+              </div>
             </div>
           ) : (
             <div className="bg-gray-100 p-8 flex items-center justify-center">
@@ -452,6 +462,36 @@ export default function TechInstallationPage() {
                 Completar Instalacion
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Enlarged Image Modal */}
+      {showEnlargedImage && installation.product_image && (
+        <div 
+          className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowEnlargedImage(false)}
+        >
+          <div className="relative w-full max-w-lg">
+            <button
+              onClick={() => setShowEnlargedImage(false)}
+              className="absolute -top-12 right-0 text-white p-2"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div className="bg-white rounded-xl overflow-hidden">
+              <img 
+                src={installation.product_image} 
+                alt={installation.product_name}
+                className="w-full h-auto"
+              />
+              <div className="p-4 bg-cyan-50">
+                <span className="bg-cyan-600 text-white text-xl font-bold px-4 py-2 rounded">
+                  {installation.product_model}
+                </span>
+                <p className="mt-3 font-medium text-gray-900 text-lg">{installation.product_name}</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
