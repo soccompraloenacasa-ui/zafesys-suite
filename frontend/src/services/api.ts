@@ -397,6 +397,38 @@ export const warehousesApi = {
   },
 };
 
+// GPS Tracking Types
+export interface TechnicianLocation {
+  technician_id: number;
+  technician_name: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  battery_level: number | null;
+  activity: string | null;
+  is_available: boolean;
+  recorded_at: string;
+  minutes_ago: number;
+  current_installation: {
+    id: number;
+    address: string;
+    lead_name: string;
+    status: string;
+  } | null;
+}
+
+export interface LocationHistory {
+  id: number;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  battery_level: number | null;
+  activity: string | null;
+  recorded_at: string;
+}
+
 // Technician Mobile App API
 export const techApi = {
   login: async (phone: string, pin: string) => {
@@ -447,6 +479,44 @@ export const techApi = {
     const { data } = await api.get('/tech/profile', {
       params: { technician_id: technicianId },
     });
+    return data;
+  },
+  
+  // GPS Tracking
+  updateLocation: async (
+    technicianId: number,
+    location: {
+      latitude: number;
+      longitude: number;
+      accuracy?: number;
+      speed?: number;
+      heading?: number;
+      altitude?: number;
+      battery_level?: number;
+      activity?: string;
+      installation_id?: number;
+    }
+  ) => {
+    const { data } = await api.post('/tech/location',
+      location,
+      { params: { technician_id: technicianId } }
+    );
+    return data;
+  },
+  
+  getAllLocations: async (): Promise<TechnicianLocation[]> => {
+    const { data } = await api.get('/tech/locations/all');
+    return data;
+  },
+  
+  getLocationHistory: async (
+    technicianId: number,
+    date?: string,
+    limit: number = 100
+  ): Promise<LocationHistory[]> => {
+    const params: Record<string, string | number> = { limit };
+    if (date) params.date_filter = date;
+    const { data } = await api.get(`/tech/locations/history/${technicianId}`, { params });
     return data;
   },
 };
