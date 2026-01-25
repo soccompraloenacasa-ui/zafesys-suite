@@ -305,6 +305,17 @@ export default function InstallationsPage() {
       setProducts(productsData);
       setTechnicians(techniciansData);
 
+      // Calculate initial price based on existing data
+      const defaultInstallPrice = '189000';
+      const priceData = calculateTotalPrice(
+        installation.product_id?.toString() || '',
+        installation.quantity?.toString() || '1',
+        defaultInstallPrice,
+        'none',
+        '',
+        productsData
+      );
+
       // Pre-fill form with existing data
       setFormData({
         lead_id: installation.lead_id?.toString() || '',
@@ -316,10 +327,10 @@ export default function InstallationsPage() {
         address: installation.address || '',
         city: installation.city || '',
         address_notes: installation.address_notes || '',
-        installation_price: '189000', // Default
+        installation_price: defaultInstallPrice,
         discount_type: 'none',
         discount_value: '',
-        total_price: installation.total_price?.toString() || '',
+        total_price: priceData.total > 0 ? priceData.total.toString() : (installation.total_price?.toString() || ''),
         customer_notes: installation.customer_notes || '',
       });
     } catch (err) {
