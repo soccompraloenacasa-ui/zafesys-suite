@@ -3,13 +3,14 @@ ZAFESYS Suite - Technician Mobile App Routes
 Endpoints for the technician PWA
 """
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
 from pydantic import BaseModel
 from app.api.deps import get_db
 from app import crud
-from app.models.technician import Technician
+from app.models.technician import Technician, TechnicianLocation
 from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
 from app.core.security import create_access_token
 
@@ -70,6 +71,51 @@ class TechAvailabilityRequest(BaseModel):
 class TechCompleteRequest(BaseModel):
     technician_notes: Optional[str] = None
     photo_proof_url: Optional[str] = None
+
+
+# GPS Tracking Schemas
+class LocationUpdateRequest(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None
+    heading: Optional[float] = None
+    altitude: Optional[float] = None
+    battery_level: Optional[int] = None
+    activity: Optional[str] = None  # idle, moving, at_installation
+    installation_id: Optional[int] = None
+
+
+class TechnicianLocationResponse(BaseModel):
+    technician_id: int
+    technician_name: str
+    phone: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float]
+    battery_level: Optional[int]
+    activity: Optional[str]
+    is_available: bool
+    recorded_at: datetime
+    minutes_ago: int
+    current_installation: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LocationHistoryResponse(BaseModel):
+    id: int
+    latitude: float
+    longitude: float
+    accuracy: Optional[float]
+    speed: Optional[float]
+    battery_level: Optional[int]
+    activity: Optional[str]
+    recorded_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ============================================================
@@ -415,5 +461,155 @@ def get_tech_profile(
         "email": technician.email,
         "zone": technician.zone,
         "is_available": technician.is_available,
-        "is_active": technician.is_active
+        "is_active": technician.is_active,
+        "tracking_enabled": getattr(technician, 'tracking_enabled', True)
     }
+
+
+# ============================================================
+# GPS TRACKING ENDPOINTS
+# ============================================================
+
+@router.post("/location")
+def update_location(
+    technician_id: int,
+    request: LocationUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update technician's current GPS location.
+    Called periodically by the PWA (every 2-3 minutes).
+    """
+    technician = crud.technician.get(db, id=technician_id)
+    
+    if not technician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tecnico no encontrado"
+        )
+    
+    # Create location record
+    location = TechnicianLocation(
+        technician_id=technician_id,
+        latitude=request.latitude,
+        longitude=request.longitude,
+        accuracy=request.accuracy,
+        speed=request.speed,
+        heading=request.heading,
+        altitude=request.altitude,
+        battery_level=request.battery_level,
+        activity=request.activity,
+        installation_id=request.installation_id
+    )
+    
+    db.add(location)
+    db.commit()
+    
+    return {
+        "message": "Ubicacion actualizada",
+        "location_id": location.id,
+        "recorded_at": location.recorded_at
+    }
+
+
+@router.get("/locations/all", response_model=List[TechnicianLocationResponse])
+def get_all_technician_locations(
+    db: Session = Depends(get_db)
+):
+    """
+    Get the latest location for all active technicians.
+    Used by admin dashboard to show real-time map.
+    """
+    # Subquery to get the latest location for each technician
+    latest_location_subq = db.query(
+        TechnicianLocation.technician_id,
+        func.max(TechnicianLocation.recorded_at).label('max_recorded_at')
+    ).group_by(TechnicianLocation.technician_id).subquery()
+    
+    # Join to get full location data along with technician info
+    results = db.query(TechnicianLocation, Technician).join(
+        latest_location_subq,
+        and_(
+            TechnicianLocation.technician_id == latest_location_subq.c.technician_id,
+            TechnicianLocation.recorded_at == latest_location_subq.c.max_recorded_at
+        )
+    ).join(
+        Technician,
+        TechnicianLocation.technician_id == Technician.id
+    ).filter(
+        Technician.is_active == True
+    ).all()
+    
+    now = datetime.now()
+    response = []
+    
+    for location, technician in results:
+        # Calculate minutes since last update
+        time_diff = now - location.recorded_at.replace(tzinfo=None) if location.recorded_at else timedelta(0)
+        minutes_ago = int(time_diff.total_seconds() / 60)
+        
+        # Get current installation if any
+        current_installation = None
+        if location.installation_id:
+            inst = db.query(Installation).filter(Installation.id == location.installation_id).first()
+            if inst:
+                current_installation = {
+                    "id": inst.id,
+                    "address": inst.address,
+                    "lead_name": inst.lead.name if inst.lead else "Sin nombre",
+                    "status": inst.status.value
+                }
+        
+        response.append(TechnicianLocationResponse(
+            technician_id=technician.id,
+            technician_name=technician.full_name,
+            phone=technician.phone,
+            latitude=location.latitude,
+            longitude=location.longitude,
+            accuracy=location.accuracy,
+            battery_level=location.battery_level,
+            activity=location.activity,
+            is_available=technician.is_available,
+            recorded_at=location.recorded_at,
+            minutes_ago=minutes_ago,
+            current_installation=current_installation
+        ))
+    
+    return response
+
+
+@router.get("/locations/history/{technician_id}", response_model=List[LocationHistoryResponse])
+def get_technician_location_history(
+    technician_id: int,
+    date_filter: Optional[date] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Get location history for a specific technician.
+    Useful for reviewing a technician's route during the day.
+    """
+    query = db.query(TechnicianLocation).filter(
+        TechnicianLocation.technician_id == technician_id
+    )
+    
+    if date_filter:
+        start_of_day = datetime.combine(date_filter, datetime.min.time())
+        end_of_day = datetime.combine(date_filter, datetime.max.time())
+        query = query.filter(
+            TechnicianLocation.recorded_at >= start_of_day,
+            TechnicianLocation.recorded_at <= end_of_day
+        )
+    
+    locations = query.order_by(TechnicianLocation.recorded_at.desc()).limit(limit).all()
+    
+    return [LocationHistoryResponse(
+        id=loc.id,
+        latitude=loc.latitude,
+        longitude=loc.longitude,
+        accuracy=loc.accuracy,
+        speed=loc.speed,
+        battery_level=loc.battery_level,
+        activity=loc.activity,
+        recorded_at=loc.recorded_at
+    ) for loc in locations]
