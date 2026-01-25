@@ -18,7 +18,7 @@ type LocationCallback = (location: LocationData | null, error?: string) => void;
 
 class LocationTrackingService {
   private watchId: number | null = null;
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
   private lastLocation: LocationData | null = null;
   private technicianId: number | null = null;
   private currentInstallationId: number | null = null;
