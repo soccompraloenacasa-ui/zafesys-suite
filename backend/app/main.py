@@ -42,6 +42,55 @@ def run_migrations():
         """,
         "CREATE INDEX IF NOT EXISTS idx_inventory_movements_product_id ON inventory_movements(product_id);",
         "CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at ON inventory_movements(created_at);",
+        
+        # Warehouses table
+        """
+        CREATE TABLE IF NOT EXISTS warehouses (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            code VARCHAR(20) UNIQUE NOT NULL,
+            address VARCHAR(255),
+            city VARCHAR(100),
+            contact_name VARCHAR(100),
+            contact_phone VARCHAR(20),
+            notes TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE
+        );
+        """,
+        
+        # Warehouse stock table
+        """
+        CREATE TABLE IF NOT EXISTS warehouse_stock (
+            id SERIAL PRIMARY KEY,
+            warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            quantity INTEGER NOT NULL DEFAULT 0,
+            min_stock_alert INTEGER DEFAULT 2,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(warehouse_id, product_id)
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_warehouse_stock_warehouse ON warehouse_stock(warehouse_id);",
+        "CREATE INDEX IF NOT EXISTS idx_warehouse_stock_product ON warehouse_stock(product_id);",
+        
+        # Insert default warehouses if they don't exist
+        """
+        INSERT INTO warehouses (name, code, address, city, notes)
+        SELECT 'Bodega Principal', 'BOD1', '', '', 'Bodega principal'
+        WHERE NOT EXISTS (SELECT 1 FROM warehouses WHERE code = 'BOD1');
+        """,
+        """
+        INSERT INTO warehouses (name, code, address, city, notes)
+        SELECT 'Bodega 2', 'BOD2', '', '', 'Segunda bodega'
+        WHERE NOT EXISTS (SELECT 1 FROM warehouses WHERE code = 'BOD2');
+        """,
+        """
+        INSERT INTO warehouses (name, code, address, city, notes)
+        SELECT 'Bodega 3', 'BOD3', '', '', 'Tercera bodega'
+        WHERE NOT EXISTS (SELECT 1 FROM warehouses WHERE code = 'BOD3');
+        """,
     ]
     
     with engine.connect() as conn:
