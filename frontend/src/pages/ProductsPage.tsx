@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Plus, Package, Search, Edit2, Trash2, X, ImageIcon } from 'lucide-react';
+import { Plus, Package, Search, Edit2, Trash2, X, ImageIcon, Tag } from 'lucide-react';
 import { productsApi } from '../services/api';
 import type { Product } from '../types';
 import Modal from '../components/common/Modal';
+
+// Color/Label options
+const COLOR_OPTIONS = [
+  { value: '', label: 'Sin etiqueta', color: 'bg-gray-100 text-gray-600' },
+  { value: 'black', label: 'Black', color: 'bg-gray-800 text-white' },
+  { value: 'silver', label: 'Silver', color: 'bg-gray-300 text-gray-800' },
+  { value: 'gold', label: 'Gold', color: 'bg-yellow-400 text-yellow-900' },
+];
 
 interface ProductFormData {
   name: string;
   sku: string;
   model: string;
+  color_label: string;
   price: string;
   supplier_cost: string;
   installation_price: string;
@@ -22,6 +31,7 @@ const initialFormData: ProductFormData = {
   name: '',
   sku: '',
   model: '',
+  color_label: '',
   price: '',
   supplier_cost: '',
   installation_price: '0',
@@ -30,6 +40,19 @@ const initialFormData: ProductFormData = {
   description: '',
   features: '',
   image_url: '',
+};
+
+// Helper to extract color from features
+const extractColorFromFeatures = (features: string | null | undefined): string => {
+  if (!features) return '';
+  const match = features.match(/\[Etiqueta: (\w+)\]/);
+  return match ? match[1].toLowerCase() : '';
+};
+
+// Helper to remove color tag from features
+const removeColorFromFeatures = (features: string | null | undefined): string => {
+  if (!features) return '';
+  return features.replace(/\[Etiqueta: \w+\]\n?/, '').trim();
 };
 
 export default function ProductsPage() {
@@ -75,17 +98,21 @@ export default function ProductsPage() {
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
+    const colorLabel = extractColorFromFeatures(product.features);
+    const cleanFeatures = removeColorFromFeatures(product.features);
+    
     setFormData({
       name: product.name,
       sku: product.sku,
       model: product.model || '',
+      color_label: colorLabel,
       price: product.price.toString(),
       supplier_cost: ((product as any).supplier_cost || '').toString(),
       installation_price: (product.installation_price || 0).toString(),
       stock: product.stock.toString(),
       min_stock_alert: (product.min_stock_alert || 5).toString(),
       description: product.description || '',
-      features: product.features || '',
+      features: cleanFeatures,
       image_url: product.image_url || '',
     });
     setImagePreviewUrl(product.image_url || null);
@@ -102,7 +129,7 @@ export default function ProductsPage() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -131,6 +158,15 @@ export default function ProductsPage() {
     setSaving(true);
 
     try {
+      // Build features with color tag
+      let features = formData.features || '';
+      if (formData.color_label) {
+        const colorOption = COLOR_OPTIONS.find(c => c.value === formData.color_label);
+        if (colorOption) {
+          features = `[Etiqueta: ${colorOption.label}]\n${features}`.trim();
+        }
+      }
+
       const productData = {
         name: formData.name,
         sku: formData.sku,
@@ -141,7 +177,7 @@ export default function ProductsPage() {
         stock: parseInt(formData.stock) || 0,
         min_stock_alert: parseInt(formData.min_stock_alert) || 5,
         description: formData.description || undefined,
-        features: formData.features || undefined,
+        features: features || undefined,
         image_url: formData.image_url || undefined,
       };
 
@@ -164,6 +200,13 @@ export default function ProductsPage() {
     if (product.image_url) {
       setEnlargedImage({ url: product.image_url, name: product.name });
     }
+  };
+
+  // Get color badge for a product
+  const getColorBadge = (product: Product) => {
+    const colorValue = extractColorFromFeatures(product.features);
+    const colorOption = COLOR_OPTIONS.find(c => c.value === colorValue);
+    return colorOption && colorOption.value ? colorOption : null;
   };
 
   const profitData = getProfit();
@@ -220,6 +263,7 @@ export default function ProductsPage() {
             const hasProfit = supplierCost && supplierCost > 0;
             const profit = hasProfit ? product.price - supplierCost : 0;
             const margin = hasProfit ? (profit / product.price) * 100 : 0;
+            const colorBadge = getColorBadge(product);
             
             return (
               <div
@@ -264,7 +308,15 @@ export default function ProductsPage() {
                 </div>
 
                 <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                <p className="text-xs text-gray-500 mb-3">SKU: {product.sku}</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+                  {/* Color Badge */}
+                  {colorBadge && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorBadge.color}`}>
+                      {colorBadge.label}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-lg font-bold text-cyan-600">
@@ -391,19 +443,48 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Modelo *
-            </label>
-            <input
-              type="text"
-              name="model"
-              value={formData.model}
-              onChange={handleInputChange}
-              placeholder="Ej: OS566F"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Modelo *
+              </label>
+              <input
+                type="text"
+                name="model"
+                value={formData.model}
+                onChange={handleInputChange}
+                placeholder="Ej: OS566F"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Tag className="w-4 h-4 inline mr-1" />
+                Etiqueta / Color
+              </label>
+              <select
+                name="color_label"
+                value={formData.color_label}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              >
+                {COLOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {formData.color_label && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Vista previa:</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COLOR_OPTIONS.find(c => c.value === formData.color_label)?.color}`}>
+                    {COLOR_OPTIONS.find(c => c.value === formData.color_label)?.label}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
