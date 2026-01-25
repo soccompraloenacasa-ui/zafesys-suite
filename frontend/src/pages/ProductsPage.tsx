@@ -371,7 +371,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {groupedProducts.map((group, index) => (
+          {groupedProducts.map((group) => (
             <div key={group.colorValue || 'none'}>
               {/* Section Header */}
               <div className="mb-4">
