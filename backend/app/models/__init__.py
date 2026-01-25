@@ -4,7 +4,7 @@ ZAFESYS Suite - Models
 from app.models.user import User, UserRole
 from app.models.lead import Lead, LeadStatus, LeadSource
 from app.models.product import Product
-from app.models.technician import Technician
+from app.models.technician import Technician, TechnicianLocation
 from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
 from app.models.inventory import InventoryMovement, MovementType
 from app.models.customer import Customer
@@ -19,6 +19,7 @@ __all__ = [
     "LeadSource",
     "Product",
     "Technician",
+    "TechnicianLocation",
     "Installation",
     "InstallationStatus",
     "PaymentStatus",
