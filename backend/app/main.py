@@ -91,6 +91,30 @@ def run_migrations():
         SELECT 'Bodega 3', 'BOD3', '', '', 'Tercera bodega'
         WHERE NOT EXISTS (SELECT 1 FROM warehouses WHERE code = 'BOD3');
         """,
+        
+        # GPS Tracking - add column to technicians
+        "ALTER TABLE technicians ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN DEFAULT TRUE;",
+        
+        # Technician locations table for GPS tracking
+        """
+        CREATE TABLE IF NOT EXISTS technician_locations (
+            id SERIAL PRIMARY KEY,
+            technician_id INTEGER NOT NULL REFERENCES technicians(id),
+            latitude DOUBLE PRECISION NOT NULL,
+            longitude DOUBLE PRECISION NOT NULL,
+            accuracy DOUBLE PRECISION,
+            speed DOUBLE PRECISION,
+            heading DOUBLE PRECISION,
+            altitude DOUBLE PRECISION,
+            battery_level INTEGER,
+            activity VARCHAR(50),
+            installation_id INTEGER REFERENCES installations(id),
+            recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_tech_locations_technician ON technician_locations(technician_id);",
+        "CREATE INDEX IF NOT EXISTS idx_tech_locations_recorded_at ON technician_locations(recorded_at);",
+        "CREATE INDEX IF NOT EXISTS idx_tech_locations_tech_time ON technician_locations(technician_id, recorded_at DESC);",
     ]
     
     with engine.connect() as conn:
