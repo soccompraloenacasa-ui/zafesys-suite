@@ -9,6 +9,7 @@ from app.models.installation import Installation, InstallationStatus, PaymentSta
 from app.models.inventory import InventoryMovement, MovementType
 from app.models.customer import Customer
 from app.models.distributor import Distributor, DistributorSale
+from app.models.warehouse import Warehouse, WarehouseStock
 
 __all__ = [
     "User",
@@ -27,4 +28,6 @@ __all__ = [
     "Customer",
     "Distributor",
     "DistributorSale",
+    "Warehouse",
+    "WarehouseStock",
 ]
