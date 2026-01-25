@@ -337,6 +337,66 @@ export const inventoryApi = {
   },
 };
 
+// Warehouses
+export interface Warehouse {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  city?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  notes?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WarehouseStock {
+  warehouse_id: number;
+  warehouse_code: string;
+  warehouse_name: string;
+  quantity: number;
+  min_stock_alert: number;
+}
+
+export interface ProductWithWarehouseStock {
+  id: number;
+  name: string;
+  sku: string;
+  stock: number;
+  min_stock_alert: number;
+  features: string | null;
+  warehouse_stocks: WarehouseStock[];
+}
+
+export const warehousesApi = {
+  getAll: async (): Promise<Warehouse[]> => {
+    const { data } = await api.get('/warehouses/');
+    return data;
+  },
+  create: async (warehouse: Partial<Warehouse>): Promise<Warehouse> => {
+    const { data } = await api.post('/warehouses/', warehouse);
+    return data;
+  },
+  update: async (id: number, warehouse: Partial<Warehouse>): Promise<Warehouse> => {
+    const { data } = await api.put(`/warehouses/${id}`, warehouse);
+    return data;
+  },
+  getProductStock: async (productId: number) => {
+    const { data } = await api.get(`/warehouses/stock/${productId}`);
+    return data;
+  },
+  updateProductStock: async (productId: number, stocks: WarehouseStock[]) => {
+    const { data } = await api.put(`/warehouses/stock/${productId}`, stocks);
+    return data;
+  },
+  getInventoryWithWarehouses: async (): Promise<ProductWithWarehouseStock[]> => {
+    const { data } = await api.get('/warehouses/inventory-with-warehouses');
+    return data;
+  },
+};
+
 // Technician Mobile App API
 export const techApi = {
   login: async (phone: string, pin: string) => {
