@@ -10,6 +10,7 @@ import {
   Boxes,
   UserCheck,
   Building2,
+  MapPin,
 } from 'lucide-react';
 
 const navigation = [
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Instalaciones', href: '/installations', icon: Calendar },
   { name: 'Inventario', href: '/inventory', icon: Boxes },
   { name: 'Técnicos', href: '/technicians', icon: Wrench },
+  { name: 'Rastreo GPS', href: '/tech-tracking', icon: MapPin },
 ];
 
 export default function Sidebar() {
