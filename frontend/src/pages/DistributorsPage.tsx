@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Building2, Search, Edit2, Trash2, X, Phone, MapPin, ShoppingCart, DollarSign, Package, ChevronRight, Calendar, TrendingUp, Wrench, Percent, Filter, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { distributorsApi, productsApi } from '../services/api';
 import type { DistributorWithSales } from '../services/api';
 import type { Distributor, DistributorSale, Product } from '../types';
@@ -142,7 +142,7 @@ export default function DistributorsPage() {
 
   // Calculate chart data
   const chartData = useMemo(() => {
-    if (!filteredSales.length) return { monthly: [], products: [], timeline: [] };
+    if (!filteredSales.length) return { monthly: [], products: [] };
 
     // Group by month
     const monthlyMap = new Map<string, { month: string; total: number; units: number }>();
@@ -766,7 +766,7 @@ export default function DistributorsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {selectedDistributor.discount_percentage > 0 && (
+                {(selectedDistributor.discount_percentage ?? 0) > 0 && (
                   <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-semibold">
                     {selectedDistributor.discount_percentage}% Descuento
                   </span>
@@ -892,7 +892,7 @@ export default function DistributorsPage() {
                         <BarChart data={chartData.monthly}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${(v/1000000).toFixed(1)}M`} />
                           <Tooltip 
                             formatter={(value: number) => [`$${value.toLocaleString()}`, 'Ventas']}
                             contentStyle={{ borderRadius: 8 }}
@@ -918,7 +918,7 @@ export default function DistributorsPage() {
                             outerRadius={80}
                             paddingAngle={2}
                             dataKey="quantity"
-                            label={({ name, quantity }) => `${name.slice(0, 15)}... (${quantity})`}
+                            label={({ name, quantity }: { name: string; quantity: number }) => `${name.slice(0, 15)}... (${quantity})`}
                             labelLine={false}
                           >
                             {chartData.products.map((_, index) => (
@@ -1014,7 +1014,7 @@ export default function DistributorsPage() {
         isOpen={isSaleModalOpen}
         onClose={handleCloseSaleModal}
         title="Registrar Venta"
-        subtitle={`Venta para ${selectedDistributor?.name} (${selectedDistributor?.discount_percentage || 0}% descuento)`}
+        subtitle={`Venta para ${selectedDistributor?.name ?? ''} (${selectedDistributor?.discount_percentage ?? 0}% descuento)`}
         size="md"
         footer={
           <>
@@ -1060,9 +1060,9 @@ export default function DistributorsPage() {
                 </option>
               ))}
             </select>
-            {selectedDistributor?.discount_percentage > 0 && saleFormData.product_id && (
+            {(selectedDistributor?.discount_percentage ?? 0) > 0 && saleFormData.product_id && (
               <p className="text-xs text-green-600 mt-1">
-                Precio con {selectedDistributor.discount_percentage}% descuento aplicado
+                Precio con {selectedDistributor?.discount_percentage}% descuento aplicado
               </p>
             )}
           </div>
