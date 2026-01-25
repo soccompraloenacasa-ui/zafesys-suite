@@ -218,6 +218,10 @@ export const installationsApi = {
     const { data } = await api.get('/installations/');
     return data;
   },
+  getById: async (id: number): Promise<Installation> => {
+    const { data } = await api.get(`/installations/${id}`);
+    return data;
+  },
   getByDate: async (date: string, technicianId?: number) => {
     const params: Record<string, string | number> = { target_date: date };
     if (technicianId) params.technician_id = technicianId;
@@ -226,6 +230,10 @@ export const installationsApi = {
   },
   create: async (installation: Partial<Installation>): Promise<Installation> => {
     const { data } = await api.post('/installations/', installation);
+    return data;
+  },
+  update: async (id: number, installation: Partial<Installation>): Promise<Installation> => {
+    const { data } = await api.put(`/installations/${id}`, installation);
     return data;
   },
   updateStatus: async (id: number, status: string): Promise<Installation> => {
@@ -238,6 +246,9 @@ export const installationsApi = {
       photo_proof_url: photoUrl,
     });
     return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/installations/${id}`);
   },
 };
 
