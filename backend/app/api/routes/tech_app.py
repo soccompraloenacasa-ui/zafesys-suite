@@ -38,6 +38,7 @@ class TechInstallationResponse(BaseModel):
     lead_phone: str
     product_name: str
     product_model: str
+    product_image: Optional[str]  # Added product image URL
     scheduled_date: Optional[date]
     scheduled_time: Optional[str]
     address: str
@@ -184,6 +185,7 @@ def get_my_installations(
             lead_phone=inst.lead.phone if inst.lead else "",
             product_name=inst.product.name if inst.product else "Sin producto",
             product_model=inst.product.model if inst.product else "",
+            product_image=inst.product.image_url if inst.product else None,
             scheduled_date=inst.scheduled_date,
             scheduled_time=str(inst.scheduled_time) if inst.scheduled_time else None,
             address=inst.address,
@@ -226,6 +228,7 @@ def get_installation_detail(
         lead_phone=installation.lead.phone if installation.lead else "",
         product_name=installation.product.name if installation.product else "Sin producto",
         product_model=installation.product.model if installation.product else "",
+        product_image=installation.product.image_url if installation.product else None,
         scheduled_date=installation.scheduled_date,
         scheduled_time=str(installation.scheduled_time) if installation.scheduled_time else None,
         address=installation.address,
