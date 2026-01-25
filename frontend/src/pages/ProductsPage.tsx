@@ -6,11 +6,14 @@ import Modal from '../components/common/Modal';
 
 // Color/Label options with sort order (Gold=1, Silver=2, Black=3, Sin etiqueta=4)
 const COLOR_OPTIONS = [
-  { value: '', label: 'Sin etiqueta', color: 'bg-gray-100 text-gray-600', order: 4 },
-  { value: 'black', label: 'Black', color: 'bg-gray-800 text-white', order: 3 },
-  { value: 'silver', label: 'Silver', color: 'bg-gray-300 text-gray-800', order: 2 },
-  { value: 'gold', label: 'Gold', color: 'bg-yellow-400 text-yellow-900', order: 1 },
+  { value: '', label: 'Sin etiqueta', color: 'bg-gray-100 text-gray-600', order: 4, headerColor: 'text-gray-500' },
+  { value: 'black', label: 'Black', color: 'bg-gray-800 text-white', order: 3, headerColor: 'text-gray-800' },
+  { value: 'silver', label: 'Silver', color: 'bg-gray-300 text-gray-800', order: 2, headerColor: 'text-gray-500' },
+  { value: 'gold', label: 'Gold', color: 'bg-yellow-400 text-yellow-900', order: 1, headerColor: 'text-yellow-600' },
 ];
+
+// Section order for display
+const SECTION_ORDER = ['gold', 'silver', 'black', ''];
 
 interface ProductFormData {
   name: string;
@@ -55,13 +58,6 @@ const removeColorFromFeatures = (features: string | null | undefined): string =>
   return features.replace(/\[Etiqueta: \w+\]\n?/, '').trim();
 };
 
-// Helper to get sort order for a product based on its color label
-const getColorSortOrder = (features: string | null | undefined): number => {
-  const colorValue = extractColorFromFeatures(features);
-  const colorOption = COLOR_OPTIONS.find(c => c.value === colorValue);
-  return colorOption ? colorOption.order : 4; // Default to "Sin etiqueta" order
-};
-
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,20 +85,28 @@ export default function ProductsPage() {
     fetchProducts();
   }, []);
 
-  // Filter and sort products: Gold -> Silver -> Black -> Sin etiqueta
-  const filteredProducts = products
-    .filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      const orderA = getColorSortOrder(a.features);
-      const orderB = getColorSortOrder(b.features);
-      if (orderA !== orderB) return orderA - orderB;
-      // Secondary sort by name within same color group
-      return a.name.localeCompare(b.name);
-    });
+  // Filter products by search
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Group products by color label
+  const groupedProducts = SECTION_ORDER.reduce((acc, colorValue) => {
+    const productsInGroup = filteredProducts
+      .filter((p) => extractColorFromFeatures(p.features) === colorValue)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    if (productsInGroup.length > 0) {
+      acc.push({
+        colorValue,
+        colorOption: COLOR_OPTIONS.find(c => c.value === colorValue)!,
+        products: productsInGroup,
+      });
+    }
+    return acc;
+  }, [] as { colorValue: string; colorOption: typeof COLOR_OPTIONS[0]; products: Product[] }[]);
 
   const handleOpenModal = () => {
     setFormData(initialFormData);
@@ -227,6 +231,99 @@ export default function ProductsPage() {
 
   const profitData = getProfit();
 
+  // Render a single product card
+  const renderProductCard = (product: Product) => {
+    const supplierCost = (product as any).supplier_cost;
+    const hasProfit = supplierCost && supplierCost > 0;
+    const profit = hasProfit ? product.price - supplierCost : 0;
+    const margin = hasProfit ? (profit / product.price) * 100 : 0;
+    const colorBadge = getColorBadge(product);
+    
+    return (
+      <div
+        key={product.id}
+        className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start justify-between mb-3">
+          {/* Product Image or Icon */}
+          {product.image_url ? (
+            <div 
+              onClick={() => handleImageClick(product)}
+              className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+              title="Click para ampliar"
+            >
+              <img 
+                src={product.image_url} 
+                alt={product.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
+                }}
+              />
+            </div>
+          ) : (
+            <div className="p-2 bg-cyan-50 rounded-lg">
+              <Package className="w-6 h-6 text-cyan-500" />
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => handleEditProduct(product)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Editar producto"
+            >
+              <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
+            </button>
+            <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+              <Trash2 className="w-4 h-4 text-red-400" />
+            </button>
+          </div>
+        </div>
+
+        <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+          {/* Color Badge */}
+          {colorBadge && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorBadge.color}`}>
+              {colorBadge.label}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-lg font-bold text-cyan-600">
+            ${product.price.toLocaleString()}
+          </span>
+          <span
+            className={`text-xs font-medium px-2 py-1 rounded ${
+              product.stock > 10
+                ? 'bg-green-100 text-green-700'
+                : product.stock > 0
+                ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-red-100 text-red-700'
+            }`}
+          >
+            Stock: {product.stock}
+          </span>
+        </div>
+
+        {/* Profit Info */}
+        {hasProfit && (
+          <div className="pt-2 border-t border-gray-100 text-xs">
+            <div className="flex justify-between text-gray-500">
+              <span>Costo: ${supplierCost.toLocaleString()}</span>
+              <span className="text-green-600 font-medium">
+                +${profit.toLocaleString()} ({margin.toFixed(0)}%)
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -256,7 +353,7 @@ export default function ProductsPage() {
         />
       </div>
 
-      {/* Products Grid */}
+      {/* Products by Section */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
@@ -273,98 +370,23 @@ export default function ProductsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredProducts.map((product) => {
-            const supplierCost = (product as any).supplier_cost;
-            const hasProfit = supplierCost && supplierCost > 0;
-            const profit = hasProfit ? product.price - supplierCost : 0;
-            const margin = hasProfit ? (profit / product.price) * 100 : 0;
-            const colorBadge = getColorBadge(product);
-            
-            return (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  {/* Product Image or Icon */}
-                  {product.image_url ? (
-                    <div 
-                      onClick={() => handleImageClick(product)}
-                      className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                      title="Click para ampliar"
-                    >
-                      <img 
-                        src={product.image_url} 
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-cyan-50 flex items-center justify-center"><svg class="w-6 h-6 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg></div>';
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="p-2 bg-cyan-50 rounded-lg">
-                      <Package className="w-6 h-6 text-cyan-500" />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => handleEditProduct(product)}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Editar producto"
-                    >
-                      <Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" />
-                    </button>
-                    <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
-                  </div>
-                </div>
-
-                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                <div className="flex items-center gap-2 mb-3">
-                  <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                  {/* Color Badge */}
-                  {colorBadge && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorBadge.color}`}>
-                      {colorBadge.label}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-bold text-cyan-600">
-                    ${product.price.toLocaleString()}
-                  </span>
-                  <span
-                    className={`text-xs font-medium px-2 py-1 rounded ${
-                      product.stock > 10
-                        ? 'bg-green-100 text-green-700'
-                        : product.stock > 0
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    Stock: {product.stock}
-                  </span>
-                </div>
-
-                {/* Profit Info */}
-                {hasProfit && (
-                  <div className="pt-2 border-t border-gray-100 text-xs">
-                    <div className="flex justify-between text-gray-500">
-                      <span>Costo: ${supplierCost.toLocaleString()}</span>
-                      <span className="text-green-600 font-medium">
-                        +${profit.toLocaleString()} ({margin.toFixed(0)}%)
-                      </span>
-                    </div>
-                  </div>
-                )}
+        <div className="space-y-8">
+          {groupedProducts.map((group, index) => (
+            <div key={group.colorValue || 'none'}>
+              {/* Section Header */}
+              <div className="mb-4">
+                <h2 className={`text-lg font-bold uppercase tracking-wide ${group.colorOption.headerColor}`}>
+                  {group.colorOption.label}
+                </h2>
+                <div className="mt-1 border-b-2 border-gray-300"></div>
               </div>
-            );
-          })}
+              
+              {/* Products Grid for this section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {group.products.map(renderProductCard)}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
