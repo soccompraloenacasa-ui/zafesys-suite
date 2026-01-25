@@ -16,6 +16,7 @@ import {
   CreditCard,
   Banknote,
   Send,
+  AlertTriangle,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 import Modal from '../../components/common/Modal';
@@ -29,6 +30,7 @@ interface TechInstallation {
   lead_phone: string;
   product_name: string;
   product_model: string;
+  product_image: string | null;
   scheduled_date: string | null;
   scheduled_time: string | null;
   address: string;
@@ -140,18 +142,7 @@ export default function TechInstallationPage() {
       ? `${installation.address}, ${installation.city}`
       : installation.address;
 
-    const message = `✅ *INSTALACIÓN EXITOSA*
-
-👨‍🔧 *Técnico:* ${techName}
-👤 *Cliente:* ${installation.lead_name}
-📱 *Tel Cliente:* ${installation.lead_phone}
-🔐 *Producto:* ${installation.product_name} (${installation.product_model})
-📍 *Dirección:* ${fullAddress}
-💰 *Total:* $${installation.total_price.toLocaleString()}
-💳 *Pagado:* $${installation.amount_paid.toLocaleString()}
-${techNotes ? `📝 *Notas:* ${techNotes}` : ''}
-
-🕐 ${new Date().toLocaleString('es-CO')}`;
+    const message = `✅ *INSTALACIÓN EXITOSA*\n\n👨‍🔧 *Técnico:* ${techName}\n👤 *Cliente:* ${installation.lead_name}\n📱 *Tel Cliente:* ${installation.lead_phone}\n🔐 *Producto:* ${installation.product_name} (${installation.product_model})\n📍 *Dirección:* ${fullAddress}\n💰 *Total:* $${installation.total_price.toLocaleString()}\n💳 *Pagado:* $${installation.amount_paid.toLocaleString()}\n${techNotes ? `📝 *Notas:* ${techNotes}` : ''}\n\n🕐 ${new Date().toLocaleString('es-CO')}`;
 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodedMessage}`, '_blank');
@@ -245,6 +236,46 @@ ${techNotes ? `📝 *Notas:* ${techNotes}` : ''}
           </div>
         )}
 
+        {/* ⚠️ PRODUCTO - IMAGEN GRANDE Y PROMINENTE */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden border-2 border-cyan-400">
+          {/* Header de advertencia */}
+          <div className="bg-cyan-500 text-white px-4 py-2 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-bold text-sm uppercase">Verifica el producto antes de salir</span>
+          </div>
+          
+          {/* Imagen del producto - GRANDE */}
+          {installation.product_image ? (
+            <div className="bg-gray-100 p-4">
+              <img
+                src={installation.product_image}
+                alt={installation.product_name}
+                className="w-full h-48 object-contain rounded-lg"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          ) : (
+            <div className="bg-gray-100 p-8 flex items-center justify-center">
+              <div className="text-center text-gray-400">
+                <Package className="w-16 h-16 mx-auto mb-2" />
+                <p className="text-sm">Sin imagen disponible</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Info del producto */}
+          <div className="p-4 bg-cyan-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-cyan-600 text-white text-lg font-bold px-3 py-1 rounded">
+                {installation.product_model}
+              </span>
+            </div>
+            <p className="font-medium text-gray-900 text-lg">{installation.product_name}</p>
+          </div>
+        </div>
+
         {/* Customer Info */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
@@ -313,19 +344,6 @@ ${techNotes ? `📝 *Notas:* ${techNotes}` : ''}
             <Navigation className="w-4 h-4" />
             Abrir en Google Maps
           </button>
-        </div>
-
-        {/* Product */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-cyan-50 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-cyan-600" />
-            </div>
-            <div>
-              <p className="font-medium text-gray-900">{installation.product_name}</p>
-              <p className="text-sm text-gray-500">{installation.product_model}</p>
-            </div>
-          </div>
         </div>
 
         {/* Payment */}
