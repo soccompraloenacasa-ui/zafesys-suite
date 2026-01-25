@@ -15,8 +15,11 @@ import {
   Route,
   Map,
   X,
+  Locate,
+  MapPinOff,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
+import { locationTracker } from '../../services/locationTracker';
 import RouteMap from '../../components/tech/RouteMap';
 
 interface TechInstallation {
@@ -122,6 +125,10 @@ export default function TechDashboardPage() {
   const [techName, setTechName] = useState('');
   const [showRouteView, setShowRouteView] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; model: string; name: string } | null>(null);
+  
+  // GPS Tracking state
+  const [isTrackingGPS, setIsTrackingGPS] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   const techId = parseInt(localStorage.getItem('tech_id') || '0');
 
@@ -134,7 +141,35 @@ export default function TechDashboardPage() {
     setTechName(localStorage.getItem('tech_name') || 'Tecnico');
     fetchInstallations();
     fetchProfile();
+    
+    // Start GPS tracking
+    startGPSTracking();
+
+    // Cleanup on unmount
+    return () => {
+      // Don't stop tracking on unmount - keep it running in background
+    };
   }, [techId, navigate]);
+
+  const startGPSTracking = async () => {
+    const success = await locationTracker.startTracking(techId);
+    setIsTrackingGPS(success);
+    
+    if (!success) {
+      setGpsError('No se pudo activar el GPS');
+    }
+    
+    // Subscribe to location updates
+    locationTracker.onLocationUpdate((location, error) => {
+      if (error) {
+        setGpsError(error);
+        setIsTrackingGPS(false);
+      } else if (location) {
+        setGpsError(null);
+        setIsTrackingGPS(true);
+      }
+    });
+  };
 
   const fetchInstallations = async () => {
     try {
@@ -166,12 +201,25 @@ export default function TechDashboardPage() {
     try {
       await techApi.updateAvailability(techId, !isAvailable);
       setIsAvailable(!isAvailable);
+      
+      // Control GPS tracking based on availability
+      if (!isAvailable) {
+        // Turning available ON - start tracking
+        startGPSTracking();
+      } else {
+        // Turning available OFF - stop tracking
+        locationTracker.stopTracking();
+        setIsTrackingGPS(false);
+      }
     } catch (error) {
       console.error('Error updating availability:', error);
     }
   };
 
   const handleLogout = () => {
+    // Stop GPS tracking on logout
+    locationTracker.stopTracking();
+    
     localStorage.removeItem('tech_token');
     localStorage.removeItem('tech_id');
     localStorage.removeItem('tech_name');
@@ -249,6 +297,24 @@ export default function TechDashboardPage() {
             <h1 className="text-xl font-bold">{techName}</h1>
           </div>
           <div className="flex items-center gap-2">
+            {/* GPS Status Indicator */}
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
+              isTrackingGPS 
+                ? 'bg-green-500/30 text-green-100' 
+                : 'bg-red-500/30 text-red-200'
+            }`}>
+              {isTrackingGPS ? (
+                <>
+                  <Locate className="w-3 h-3 animate-pulse" />
+                  GPS
+                </>
+              ) : (
+                <>
+                  <MapPinOff className="w-3 h-3" />
+                  GPS
+                </>
+              )}
+            </div>
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -265,14 +331,26 @@ export default function TechDashboardPage() {
           </div>
         </div>
 
+        {/* GPS Error Banner */}
+        {gpsError && (
+          <div className="bg-red-500/30 border border-red-400/50 rounded-lg px-3 py-2 mb-4 text-sm">
+            ⚠️ {gpsError}. Tu ubicación no se está reportando.
+          </div>
+        )}
+
         {/* Availability Toggle */}
         <div
           onClick={handleToggleAvailability}
           className="flex items-center justify-between bg-cyan-600/50 rounded-lg p-3 cursor-pointer"
         >
-          <span className="font-medium">
-            {isAvailable ? 'Disponible' : 'No disponible'}
-          </span>
+          <div>
+            <span className="font-medium">
+              {isAvailable ? 'Disponible' : 'No disponible'}
+            </span>
+            {isAvailable && isTrackingGPS && (
+              <p className="text-xs text-cyan-200 mt-0.5">📍 Ubicación activa</p>
+            )}
+          </div>
           {isAvailable ? (
             <ToggleRight className="w-8 h-8 text-green-300" />
           ) : (
