@@ -24,6 +24,7 @@ interface TechInstallation {
   lead_phone: string;
   product_name: string;
   product_model: string;
+  product_image: string | null;
   scheduled_date: string | null;
   scheduled_time: string | null;
   address: string;
@@ -51,14 +52,11 @@ const paymentLabels: Record<string, { label: string; color: string }> = {
   pagado: { label: 'Pagado', color: 'bg-green-100 text-green-700' },
 };
 
-// Función para optimizar ruta agrupando por ciudad/zona
 function optimizeRoute(installations: TechInstallation[]): TechInstallation[] {
-  // Filtrar solo pendientes (no completadas ni canceladas)
   const pending = installations.filter(
     (i) => i.status !== 'completada' && i.status !== 'cancelada'
   );
 
-  // Agrupar por ciudad
   const byCity: Record<string, TechInstallation[]> = {};
   pending.forEach((inst) => {
     const city = (inst.city || 'Sin ciudad').toLowerCase().trim();
@@ -66,7 +64,6 @@ function optimizeRoute(installations: TechInstallation[]): TechInstallation[] {
     byCity[city].push(inst);
   });
 
-  // Ordenar cada grupo por hora programada
   Object.keys(byCity).forEach((city) => {
     byCity[city].sort((a, b) => {
       const timeA = a.scheduled_time || '23:59:59';
@@ -75,12 +72,10 @@ function optimizeRoute(installations: TechInstallation[]): TechInstallation[] {
     });
   });
 
-  // Ordenar ciudades por cantidad de instalaciones (más instalaciones primero)
   const sortedCities = Object.keys(byCity).sort(
     (a, b) => byCity[b].length - byCity[a].length
   );
 
-  // Concatenar todas las instalaciones en orden optimizado
   const optimized: TechInstallation[] = [];
   sortedCities.forEach((city) => {
     optimized.push(...byCity[city]);
@@ -89,11 +84,9 @@ function optimizeRoute(installations: TechInstallation[]): TechInstallation[] {
   return optimized;
 }
 
-// Generar URL de Google Maps con múltiples paradas
 function generateGoogleMapsRouteUrl(installations: TechInstallation[]): string {
   if (installations.length === 0) return '';
 
-  // Google Maps permite hasta 10 destinos en la URL
   const maxWaypoints = 10;
   const limited = installations.slice(0, maxWaypoints);
 
@@ -105,11 +98,9 @@ function generateGoogleMapsRouteUrl(installations: TechInstallation[]): string {
   });
 
   if (addresses.length === 1) {
-    // Solo un destino
     return `https://www.google.com/maps/dir/?api=1&destination=${addresses[0]}&travelmode=driving`;
   }
 
-  // Múltiples destinos: origin -> waypoints -> destination
   const origin = addresses[0];
   const destination = addresses[addresses.length - 1];
   const waypoints = addresses.slice(1, -1).join('|');
@@ -220,7 +211,6 @@ export default function TechDashboardPage() {
   const pendingCount = pendingInstallations.length;
   const optimizedInstallations = optimizeRoute(installations);
 
-  // Preparar datos para el mapa
   const mapLocations = optimizedInstallations.map((inst, index) => ({
     id: inst.id,
     address: inst.address,
@@ -229,7 +219,6 @@ export default function TechDashboardPage() {
     order: index + 1,
   }));
 
-  // Agrupar por ciudad para la vista de ruta
   const groupedByCity: Record<string, TechInstallation[]> = {};
   optimizedInstallations.forEach((inst) => {
     const city = inst.city || 'Sin ciudad';
@@ -353,16 +342,36 @@ export default function TechDashboardPage() {
                         onClick={() => navigate(`/tech/installation/${installation.id}`)}
                         className="p-4 cursor-pointer"
                       >
+                        {/* Product Image - NEW! Large and prominent */}
+                        {installation.product_image && (
+                          <div className="mb-3 bg-gray-50 rounded-lg p-2 border-2 border-cyan-200">
+                            <img
+                              src={installation.product_image}
+                              alt={installation.product_name}
+                              className="w-full h-32 object-contain rounded"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+
                         <div className="flex items-start justify-between mb-2">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="font-semibold text-gray-900">
                               {installation.lead_name}
                             </h3>
-                            <p className="text-sm text-gray-500">
-                              {installation.product_name}
-                            </p>
+                            {/* Product info with model prominently displayed */}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="bg-cyan-100 text-cyan-800 text-xs font-bold px-2 py-1 rounded">
+                                {installation.product_model}
+                              </span>
+                              <span className="text-sm text-gray-500 truncate">
+                                {installation.product_name}
+                              </span>
+                            </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         </div>
 
                         {/* Time & Status */}
@@ -491,10 +500,26 @@ export default function TechDashboardPage() {
                         className="bg-white rounded-lg shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-start gap-3">
-                          {/* Order Number */}
-                          <div className="w-8 h-8 bg-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            {globalIndex}
-                          </div>
+                          {/* Product Image or Order Number */}
+                          {installation.product_image ? (
+                            <div className="relative">
+                              <img
+                                src={installation.product_image}
+                                alt={installation.product_model}
+                                className="w-16 h-16 object-contain rounded border border-gray-200"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-8 h-8 bg-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm">${globalIndex}</div>`;
+                                }}
+                              />
+                              <div className="absolute -top-1 -right-1 w-5 h-5 bg-cyan-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                {globalIndex}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 bg-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
+                              {globalIndex}
+                            </div>
+                          )}
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
@@ -503,6 +528,10 @@ export default function TechDashboardPage() {
                               </h4>
                               <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             </div>
+
+                            <p className="text-xs text-cyan-700 font-semibold">
+                              {installation.product_model}
+                            </p>
 
                             <p className="text-sm text-gray-500 truncate">
                               {installation.address}
