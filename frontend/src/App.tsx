@@ -9,6 +9,7 @@ import TechniciansPage from './pages/TechniciansPage';
 import InventoryPage from './pages/InventoryPage';
 import CustomersPage from './pages/CustomersPage';
 import DistributorsPage from './pages/DistributorsPage';
+import TechTrackingPage from './pages/TechTrackingPage';
 
 // Tech App Pages
 import TechLoginPage from './pages/tech/TechLoginPage';
@@ -71,6 +72,7 @@ function App() {
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/installations" element={<InstallationsPage />} />
                 <Route path="/technicians" element={<TechniciansPage />} />
+                <Route path="/tech-tracking" element={<TechTrackingPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />
               </Routes>
             </Layout>
