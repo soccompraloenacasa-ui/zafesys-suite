@@ -222,6 +222,23 @@ export default function LeadsPage() {
     });
   };
 
+  const handleLeadDeleted = (id: number) => {
+    // Remove lead from kanban data
+    setKanbanData((prev) => {
+      const newData = { ...prev };
+      for (const status of Object.keys(newData) as LeadStatus[]) {
+        newData[status] = newData[status].filter((l) => l.id !== id);
+      }
+      return newData;
+    });
+    setSelectedLeadId(null);
+  };
+
+  const handleLeadUpdated = () => {
+    // Refresh kanban to get updated lead data
+    fetchKanban();
+  };
+
   const handleOpenCreateModal = () => {
     setFormData(initialFormData);
     setError(null);
@@ -340,6 +357,8 @@ export default function LeadsPage() {
           leadId={selectedLeadId}
           onClose={handleModalClose}
           onStatusChange={handleStatusChange}
+          onLeadDeleted={handleLeadDeleted}
+          onLeadUpdated={handleLeadUpdated}
         />
       )}
 
