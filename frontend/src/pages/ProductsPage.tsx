@@ -4,12 +4,12 @@ import { productsApi } from '../services/api';
 import type { Product } from '../types';
 import Modal from '../components/common/Modal';
 
-// Color/Label options
+// Color/Label options with sort order (Gold=1, Silver=2, Black=3, Sin etiqueta=4)
 const COLOR_OPTIONS = [
-  { value: '', label: 'Sin etiqueta', color: 'bg-gray-100 text-gray-600' },
-  { value: 'black', label: 'Black', color: 'bg-gray-800 text-white' },
-  { value: 'silver', label: 'Silver', color: 'bg-gray-300 text-gray-800' },
-  { value: 'gold', label: 'Gold', color: 'bg-yellow-400 text-yellow-900' },
+  { value: '', label: 'Sin etiqueta', color: 'bg-gray-100 text-gray-600', order: 4 },
+  { value: 'black', label: 'Black', color: 'bg-gray-800 text-white', order: 3 },
+  { value: 'silver', label: 'Silver', color: 'bg-gray-300 text-gray-800', order: 2 },
+  { value: 'gold', label: 'Gold', color: 'bg-yellow-400 text-yellow-900', order: 1 },
 ];
 
 interface ProductFormData {
@@ -55,6 +55,13 @@ const removeColorFromFeatures = (features: string | null | undefined): string =>
   return features.replace(/\[Etiqueta: \w+\]\n?/, '').trim();
 };
 
+// Helper to get sort order for a product based on its color label
+const getColorSortOrder = (features: string | null | undefined): number => {
+  const colorValue = extractColorFromFeatures(features);
+  const colorOption = COLOR_OPTIONS.find(c => c.value === colorValue);
+  return colorOption ? colorOption.order : 4; // Default to "Sin etiqueta" order
+};
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,11 +89,20 @@ export default function ProductsPage() {
     fetchProducts();
   }, []);
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter and sort products: Gold -> Silver -> Black -> Sin etiqueta
+  const filteredProducts = products
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const orderA = getColorSortOrder(a.features);
+      const orderB = getColorSortOrder(b.features);
+      if (orderA !== orderB) return orderA - orderB;
+      // Secondary sort by name within same color group
+      return a.name.localeCompare(b.name);
+    });
 
   const handleOpenModal = () => {
     setFormData(initialFormData);
