@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3 } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
@@ -94,6 +94,10 @@ export default function InstallationsPage() {
   const [formData, setFormData] = useState<InstallationFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Edit mode state
+  const [editingInstallation, setEditingInstallation] = useState<Installation | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Quick lead modal state
   const [isQuickLeadModalOpen, setIsQuickLeadModalOpen] = useState(false);
@@ -256,10 +260,12 @@ export default function InstallationsPage() {
     window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
-  // Modal handlers
+  // Modal handlers for CREATE
   const handleOpenModal = async () => {
     setFormData(initialFormData);
     setError(null);
+    setIsEditMode(false);
+    setEditingInstallation(null);
     setIsModalOpen(true);
     setLoadingOptions(true);
 
@@ -280,10 +286,56 @@ export default function InstallationsPage() {
     }
   };
 
+  // Modal handlers for EDIT
+  const handleOpenEditModal = async (installation: InstallationDetail) => {
+    setError(null);
+    setIsEditMode(true);
+    setEditingInstallation(installation);
+    setIsDetailModalOpen(false);
+    setIsModalOpen(true);
+    setLoadingOptions(true);
+
+    try {
+      const [leadsData, productsData, techniciansData] = await Promise.all([
+        leadsApi.getAll(),
+        productsApi.getAll(),
+        techniciansApi.getAll(), // Get all technicians for editing, not just available
+      ]);
+      setLeads(leadsData);
+      setProducts(productsData);
+      setTechnicians(techniciansData);
+
+      // Pre-fill form with existing data
+      setFormData({
+        lead_id: installation.lead_id?.toString() || '',
+        product_id: installation.product_id?.toString() || '',
+        technician_id: installation.technician_id?.toString() || '',
+        quantity: installation.quantity?.toString() || '1',
+        scheduled_date: installation.scheduled_date || '',
+        scheduled_time: installation.scheduled_time || '',
+        address: installation.address || '',
+        city: installation.city || '',
+        address_notes: installation.address_notes || '',
+        installation_price: '189000', // Default, we'll calculate from total
+        discount_type: 'none',
+        discount_value: '',
+        total_price: installation.total_price?.toString() || '',
+        customer_notes: installation.customer_notes || '',
+      });
+    } catch (err) {
+      console.error('Error loading options:', err);
+      setError('Error cargando datos. Intente de nuevo.');
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setFormData(initialFormData);
     setError(null);
+    setIsEditMode(false);
+    setEditingInstallation(null);
   };
 
   const handleInputChange = (
@@ -373,12 +425,25 @@ export default function InstallationsPage() {
         customer_notes: formData.customer_notes || undefined,
       };
 
-      await installationsApi.create(installationData);
+      if (isEditMode && editingInstallation) {
+        // UPDATE existing installation
+        await installationsApi.update(editingInstallation.id, installationData);
+        
+        // Navigate to the new date if it changed
+        if (formData.scheduled_date) {
+          const newDate = new Date(formData.scheduled_date);
+          setCurrentDate(newDate);
+        }
+      } else {
+        // CREATE new installation
+        await installationsApi.create(installationData);
+      }
+      
       handleCloseModal();
       fetchInstallations();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || 'Error al crear la instalacion');
+      setError(error.response?.data?.detail || `Error al ${isEditMode ? 'actualizar' : 'crear'} la instalacion`);
     } finally {
       setSaving(false);
     }
@@ -588,12 +653,22 @@ export default function InstallationsPage() {
                   {statusLabels[selectedInstallation.status]?.label || selectedInstallation.status}
                 </span>
               </div>
-              <button
-                onClick={handleCloseDetail}
-                className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Edit Button */}
+                <button
+                  onClick={() => handleOpenEditModal(selectedInstallation)}
+                  className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
+                  title="Editar instalación"
+                >
+                  <Edit3 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleCloseDetail}
+                  className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {loadingDetail ? (
@@ -759,6 +834,15 @@ export default function InstallationsPage() {
                     <p className="text-yellow-700">{selectedInstallation.customer_notes}</p>
                   </div>
                 )}
+
+                {/* Edit Button at bottom */}
+                <button
+                  onClick={() => handleOpenEditModal(selectedInstallation)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors"
+                >
+                  <Edit3 className="w-5 h-5" />
+                  Editar Instalación
+                </button>
               </div>
             )}
           </div>
@@ -874,12 +958,12 @@ export default function InstallationsPage() {
         </div>
       )}
 
-      {/* Create Installation Modal */}
+      {/* Create/Edit Installation Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title="Nueva Instalacion"
-        subtitle="Programa una instalacion de cerradura"
+        title={isEditMode ? 'Editar Instalación' : 'Nueva Instalacion'}
+        subtitle={isEditMode ? 'Modifica los datos de la instalación' : 'Programa una instalacion de cerradura'}
         size="lg"
         footer={
           <>
@@ -894,7 +978,7 @@ export default function InstallationsPage() {
               disabled={saving || !formData.lead_id || !formData.product_id || !formData.address || !formData.total_price}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : 'Crear Instalacion'}
+              {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Instalacion'}
             </button>
           </>
         }
@@ -923,6 +1007,7 @@ export default function InstallationsPage() {
                   onChange={handleInputChange}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
+                  disabled={isEditMode} // Cannot change lead in edit mode
                 >
                   <option value="">Seleccionar cliente...</option>
                   {leads.map((lead) => (
@@ -931,14 +1016,16 @@ export default function InstallationsPage() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={handleOpenQuickLead}
-                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
-                  title="Agregar cliente nuevo"
-                >
-                  <UserPlus className="w-4 h-4" />
-                </button>
+                {!isEditMode && (
+                  <button
+                    type="button"
+                    onClick={handleOpenQuickLead}
+                    className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
+                    title="Agregar cliente nuevo"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -954,6 +1041,7 @@ export default function InstallationsPage() {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
+                  disabled={isEditMode} // Cannot change product in edit mode (affects stock)
                 >
                   <option value="">Seleccionar producto...</option>
                   {products.map((product) => (
@@ -975,6 +1063,7 @@ export default function InstallationsPage() {
                   onChange={handleInputChange}
                   min="1"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  disabled={isEditMode} // Cannot change quantity in edit mode (affects stock)
                 />
               </div>
             </div>
@@ -1079,69 +1168,73 @@ export default function InstallationsPage() {
               />
             </div>
 
-            {/* Installation Price Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio de Instalación *
-              </label>
-              <select
-                name="installation_price"
-                value={formData.installation_price}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                required
-              >
-                {INSTALLATION_PRICES.map((price) => (
-                  <option key={price.value} value={price.value}>
-                    {price.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Discount Section */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Descuento
-              </label>
-              <div className="flex gap-2">
+            {/* Installation Price Selection - Only show for new installations */}
+            {!isEditMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio de Instalación *
+                </label>
                 <select
-                  name="discount_type"
-                  value={formData.discount_type}
+                  name="installation_price"
+                  value={formData.installation_price}
                   onChange={handleInputChange}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  required
                 >
-                  <option value="none">Sin descuento</option>
-                  <option value="percentage">Porcentaje (%)</option>
-                  <option value="value">Valor fijo ($)</option>
+                  {INSTALLATION_PRICES.map((price) => (
+                    <option key={price.value} value={price.value}>
+                      {price.label}
+                    </option>
+                  ))}
                 </select>
-                
-                {formData.discount_type !== 'none' && (
-                  <div className="flex-1 relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                      {formData.discount_type === 'percentage' ? (
-                        <Percent className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <DollarSign className="w-4 h-4 text-gray-400" />
-                      )}
-                    </div>
-                    <input
-                      type="number"
-                      name="discount_value"
-                      value={formData.discount_value}
-                      onChange={handleInputChange}
-                      placeholder={formData.discount_type === 'percentage' ? 'Ej: 10' : 'Ej: 50000'}
-                      min="0"
-                      max={formData.discount_type === 'percentage' ? '100' : undefined}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                    />
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
-            {/* Price Breakdown - Read Only */}
-            {selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
+            {/* Discount Section - Only show for new installations */}
+            {!isEditMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descuento
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    name="discount_type"
+                    value={formData.discount_type}
+                    onChange={handleInputChange}
+                    className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  >
+                    <option value="none">Sin descuento</option>
+                    <option value="percentage">Porcentaje (%)</option>
+                    <option value="value">Valor fijo ($)</option>
+                  </select>
+                  
+                  {formData.discount_type !== 'none' && (
+                    <div className="flex-1 relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                        {formData.discount_type === 'percentage' ? (
+                          <Percent className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <DollarSign className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        name="discount_value"
+                        value={formData.discount_value}
+                        onChange={handleInputChange}
+                        placeholder={formData.discount_type === 'percentage' ? 'Ej: 10' : 'Ej: 50000'}
+                        min="0"
+                        max={formData.discount_type === 'percentage' ? '100' : undefined}
+                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Price Breakdown - Only show for new installations */}
+            {!isEditMode && selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
               <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
                 <div className="space-y-2 text-sm">
@@ -1188,6 +1281,29 @@ export default function InstallationsPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Edit mode: Show current total price */}
+            {isEditMode && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-gray-700">Precio Total</span>
+                  <span className="text-xl font-bold text-cyan-600">
+                    ${parseInt(formData.total_price || '0').toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Para cambiar el precio total, edita el campo directamente:
+                </p>
+                <input
+                  type="number"
+                  name="total_price"
+                  value={formData.total_price}
+                  onChange={handleInputChange}
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  min="0"
+                />
               </div>
             )}
 
