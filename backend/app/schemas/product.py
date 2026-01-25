@@ -66,6 +66,7 @@ class ProductListResponse(BaseModel):
     installation_price: Decimal = Decimal("0")
     stock: int
     min_stock_alert: int = 5
+    features: Optional[str] = None  # Added for color/label tag
     is_active: bool
     image_url: Optional[str] = None
 
