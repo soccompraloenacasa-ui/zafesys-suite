@@ -14,6 +14,7 @@ import {
   ToggleRight,
   Route,
   Map,
+  X,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 import RouteMap from '../../components/tech/RouteMap';
@@ -120,6 +121,7 @@ export default function TechDashboardPage() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [techName, setTechName] = useState('');
   const [showRouteView, setShowRouteView] = useState(false);
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; model: string; name: string } | null>(null);
 
   const techId = parseInt(localStorage.getItem('tech_id') || '0');
 
@@ -196,6 +198,17 @@ export default function TechDashboardPage() {
     const url = generateGoogleMapsRouteUrl(optimized);
     if (url) {
       window.open(url, '_blank');
+    }
+  };
+
+  const handleImageClick = (e: React.MouseEvent, installation: TechInstallation) => {
+    e.stopPropagation();
+    if (installation.product_image) {
+      setEnlargedImage({
+        url: installation.product_image,
+        model: installation.product_model,
+        name: installation.product_name,
+      });
     }
   };
 
@@ -342,17 +355,21 @@ export default function TechDashboardPage() {
                         onClick={() => navigate(`/tech/installation/${installation.id}`)}
                         className="p-4 cursor-pointer"
                       >
-                        {/* Product Image - NEW! Large and prominent */}
+                        {/* Product Image - Clickable to enlarge */}
                         {installation.product_image && (
-                          <div className="mb-3 bg-gray-50 rounded-lg p-2 border-2 border-cyan-200">
+                          <div 
+                            className="mb-3 bg-gray-50 rounded-lg p-2 border-2 border-cyan-200"
+                            onClick={(e) => handleImageClick(e, installation)}
+                          >
                             <img
                               src={installation.product_image}
                               alt={installation.product_name}
-                              className="w-full h-32 object-contain rounded"
+                              className="w-full h-32 object-contain rounded cursor-zoom-in"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
+                            <p className="text-xs text-center text-cyan-600 mt-1">Toca para ampliar</p>
                           </div>
                         )}
 
@@ -502,11 +519,14 @@ export default function TechDashboardPage() {
                         <div className="flex items-start gap-3">
                           {/* Product Image or Order Number */}
                           {installation.product_image ? (
-                            <div className="relative">
+                            <div 
+                              className="relative"
+                              onClick={(e) => handleImageClick(e, installation)}
+                            >
                               <img
                                 src={installation.product_image}
                                 alt={installation.product_model}
-                                className="w-16 h-16 object-contain rounded border border-gray-200"
+                                className="w-16 h-16 object-contain rounded border border-gray-200 cursor-zoom-in"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-8 h-8 bg-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm">${globalIndex}</div>`;
                                 }}
@@ -568,6 +588,36 @@ export default function TechDashboardPage() {
           </>
         )}
       </div>
+
+      {/* Enlarged Image Modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div className="relative w-full max-w-lg">
+            <button
+              onClick={() => setEnlargedImage(null)}
+              className="absolute -top-12 right-0 text-white p-2"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div className="bg-white rounded-xl overflow-hidden">
+              <img 
+                src={enlargedImage.url} 
+                alt={enlargedImage.name}
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+              <div className="p-4 bg-cyan-50">
+                <span className="bg-cyan-600 text-white text-lg font-bold px-3 py-1 rounded">
+                  {enlargedImage.model}
+                </span>
+                <p className="mt-2 font-medium text-gray-900">{enlargedImage.name}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
