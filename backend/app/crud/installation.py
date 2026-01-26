@@ -2,11 +2,12 @@
 ZAFESYS Suite - Installation CRUD Operations
 """
 from typing import List, Optional
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from sqlalchemy.orm import Session
 from app.crud.base import CRUDBase
 from app.models import Installation, InstallationStatus, PaymentStatus
 from app.schemas import InstallationCreate, InstallationUpdate
+from app.core.timezone import now_colombia, today_colombia, COLOMBIA_TZ
 
 
 class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUpdate]):
@@ -116,7 +117,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         """Update installation status."""
         db_obj.status = status
         if status == InstallationStatus.COMPLETADA:
-            db_obj.completed_at = datetime.now(timezone.utc)
+            db_obj.completed_at = now_colombia()
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
@@ -152,7 +153,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
     ) -> Installation:
         """Mark installation as completed."""
         db_obj.status = InstallationStatus.COMPLETADA
-        db_obj.completed_at = datetime.now(timezone.utc)
+        db_obj.completed_at = now_colombia()
         if technician_notes:
             db_obj.technician_notes = technician_notes
         if photo_proof_url:
@@ -176,7 +177,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         """
         # Only start if not already running
         if db_obj.timer_started_at is None or db_obj.timer_ended_at is not None:
-            db_obj.timer_started_at = datetime.now(timezone.utc)
+            db_obj.timer_started_at = now_colombia()
             db_obj.timer_ended_at = None  # Reset end time in case of restart
             db_obj.timer_started_by = started_by
             db_obj.installation_duration_minutes = None  # Reset duration
@@ -198,10 +199,17 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         Stop the installation timer and calculate duration.
         """
         if db_obj.timer_started_at is not None and db_obj.timer_ended_at is None:
-            db_obj.timer_ended_at = datetime.now(timezone.utc)
+            db_obj.timer_ended_at = now_colombia()
             # Calculate duration in minutes
             if db_obj.timer_started_at:
-                delta = db_obj.timer_ended_at - db_obj.timer_started_at
+                # Ensure both datetimes are timezone-aware for accurate calculation
+                started = db_obj.timer_started_at
+                ended = db_obj.timer_ended_at
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=COLOMBIA_TZ)
+                if ended.tzinfo is None:
+                    ended = ended.replace(tzinfo=COLOMBIA_TZ)
+                delta = ended - started
                 db_obj.installation_duration_minutes = int(delta.total_seconds() / 60)
             db.add(db_obj)
             db.commit()
@@ -223,7 +231,10 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         elapsed_minutes = None
         
         if is_running and db_obj.timer_started_at:
-            delta = datetime.now(timezone.utc) - db_obj.timer_started_at
+            started = db_obj.timer_started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=COLOMBIA_TZ)
+            delta = now_colombia() - started
             elapsed_minutes = int(delta.total_seconds() / 60)
         
         return {
@@ -248,8 +259,8 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         return counts
 
     def get_today_count(self, db: Session) -> int:
-        """Get count of today's installations."""
-        today = date.today()
+        """Get count of today's installations (Colombia timezone)."""
+        today = today_colombia()
         return (
             db.query(Installation)
             .filter(Installation.scheduled_date == today)
