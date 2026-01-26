@@ -105,6 +105,9 @@ export const productsApi = {
     const { data } = await api.patch(`/products/${id}/stock`, { stock });
     return data;
   },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/products/${id}`);
+  },
 };
 
 // Customers
