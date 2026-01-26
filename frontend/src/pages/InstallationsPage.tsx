@@ -195,7 +195,6 @@ export default function InstallationsPage() {
   };
 
   const weekDays = getWeekDays();
-  const today = getColombiaDate();
 
   // Calculate total price with discount or surcharge (updated for multiple products)
   const calculateTotalPrice = (
