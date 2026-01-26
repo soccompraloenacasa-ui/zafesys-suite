@@ -14,9 +14,147 @@ from app.schemas import (
 from app.schemas.installation import TimerStartRequest, TimerResponse
 from app.models import User, InstallationStatus, LeadStatus
 from app.core.timezone import today_colombia
+from pydantic import BaseModel
 
 router = APIRouter()
 
+
+# ============== PUBLIC ENDPOINTS (for technician app) ==============
+
+class AppTimerStartRequest(BaseModel):
+    """Timer start request for app (no auth)."""
+    started_by: str = "technician"
+
+
+@router.get("/app/{installation_id}", response_model=InstallationResponse)
+def get_installation_for_app(
+    installation_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    PUBLIC ENDPOINT - Get installation detail for technician app.
+    No authentication required.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    return installation
+
+
+@router.post("/app/{installation_id}/timer/start", response_model=TimerResponse)
+def start_timer_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    timer_in: AppTimerStartRequest = None
+):
+    """
+    PUBLIC ENDPOINT - Start installation timer from technician app.
+    No authentication required.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    started_by = timer_in.started_by if timer_in else "technician"
+    installation = crud.installation.start_timer(
+        db,
+        db_obj=installation,
+        started_by=started_by
+    )
+    
+    return crud.installation.get_timer_status(installation)
+
+
+@router.post("/app/{installation_id}/timer/stop", response_model=TimerResponse)
+def stop_timer_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db)
+):
+    """
+    PUBLIC ENDPOINT - Stop installation timer from technician app.
+    No authentication required.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    if installation.timer_started_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Timer has not been started"
+        )
+    
+    if installation.timer_ended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Timer has already been stopped"
+        )
+    
+    installation = crud.installation.stop_timer(db, db_obj=installation)
+    
+    return crud.installation.get_timer_status(installation)
+
+
+@router.get("/app/{installation_id}/timer", response_model=TimerResponse)
+def get_timer_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db)
+):
+    """
+    PUBLIC ENDPOINT - Get timer status from technician app.
+    No authentication required.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    return crud.installation.get_timer_status(installation)
+
+
+@router.patch("/app/{installation_id}/status", response_model=InstallationResponse)
+def update_status_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    status_in: InstallationStatusUpdate
+):
+    """
+    PUBLIC ENDPOINT - Update installation status from technician app.
+    No authentication required.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    installation = crud.installation.update_status(db, db_obj=installation, status=status_in.status)
+    
+    # If installation is completed, update lead to "instalado"
+    if status_in.status == InstallationStatus.COMPLETADA:
+        lead = crud.lead.get(db, id=installation.lead_id)
+        if lead:
+            crud.lead.update_status(db, db_obj=lead, status=LeadStatus.INSTALADO)
+    
+    return installation
+
+
+# ============== AUTHENTICATED ENDPOINTS ==============
 
 @router.get("/", response_model=List[InstallationResponse])
 def get_installations(
