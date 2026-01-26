@@ -31,9 +31,9 @@ class PaymentMethod(str, enum.Enum):
     DAVIPLATA = "daviplata"
 
 
-class TimerStartedBy(str, enum.Enum):
-    ADMIN = "admin"
-    TECHNICIAN = "technician"
+# Timer started by - use string values directly
+TIMER_STARTED_BY_ADMIN = "admin"
+TIMER_STARTED_BY_TECHNICIAN = "technician"
 
 
 class Installation(Base):
@@ -82,9 +82,10 @@ class Installation(Base):
     internal_notes = Column(Text, nullable=True)  # Admin notes
 
     # Installation Timer - Track actual installation duration
+    # Using String instead of Enum to avoid requiring DB migration for new enum type
     timer_started_at = Column(DateTime(timezone=True), nullable=True)  # When timer was started
     timer_ended_at = Column(DateTime(timezone=True), nullable=True)    # When timer was stopped
-    timer_started_by = Column(SQLEnum(TimerStartedBy), nullable=True)  # Who started: admin or technician
+    timer_started_by = Column(String(20), nullable=True)  # 'admin' or 'technician'
     installation_duration_minutes = Column(Integer, nullable=True)     # Calculated duration in minutes
 
     # Completion
