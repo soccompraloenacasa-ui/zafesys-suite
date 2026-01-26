@@ -65,6 +65,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
   
   // Warehouse states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -163,6 +164,22 @@ export default function ProductsPage() {
       setWarehouseStocks({});
     } finally {
       setLoadingWarehouses(false);
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    const confirmed = window.confirm(`¿Estás seguro de eliminar "${product.name}"?\n\nEsta acción no se puede deshacer.`);
+    if (!confirmed) return;
+
+    setDeleting(product.id);
+    try {
+      await productsApi.delete(product.id);
+      fetchProducts();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      alert(error.response?.data?.detail || 'Error al eliminar el producto');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -291,9 +308,10 @@ export default function ProductsPage() {
     const profit = hasProfit ? product.price - supplierCost : 0;
     const margin = hasProfit ? (profit / product.price) * 100 : 0;
     const colorBadge = getColorBadge(product);
+    const isDeleting = deleting === product.id;
     
     return (
-      <div key={product.id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+      <div key={product.id} className={`bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow ${isDeleting ? 'opacity-50' : ''}`}>
         <div className="flex items-start justify-between mb-3">
           {product.image_url ? (
             <div onClick={() => handleImageClick(product)} className="w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border border-gray-200" title="Click para ampliar">
@@ -306,8 +324,19 @@ export default function ProductsPage() {
             <div className="p-2 bg-cyan-50 rounded-lg"><Package className="w-6 h-6 text-cyan-500" /></div>
           )}
           <div className="flex items-center gap-1">
-            <button onClick={() => handleEditProduct(product)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Editar producto"><Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" /></button>
-            <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4 text-red-400" /></button>
+            <button onClick={() => handleEditProduct(product)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Editar producto" disabled={isDeleting}><Edit2 className="w-4 h-4 text-gray-400 hover:text-cyan-500" /></button>
+            <button 
+              onClick={() => handleDeleteProduct(product)} 
+              className="p-1.5 hover:bg-red-50 rounded-lg transition-colors" 
+              title="Eliminar producto"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
+              )}
+            </button>
           </div>
         </div>
         <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
