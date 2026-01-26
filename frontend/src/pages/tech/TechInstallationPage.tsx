@@ -10,7 +10,6 @@ import {
   CircleDollarSign,
   CheckCircle,
   Truck,
-  Wrench,
   MessageSquare,
   Loader2,
   CreditCard,
