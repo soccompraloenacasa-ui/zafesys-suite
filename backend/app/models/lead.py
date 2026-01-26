@@ -12,6 +12,8 @@ class LeadStatus(str, enum.Enum):
     NUEVO = "nuevo"
     EN_CONVERSACION = "en_conversacion"
     POTENCIAL = "potencial"
+    AGENDADO = "agendado"  # Tiene instalación programada
+    INSTALADO = "instalado"  # Instalación completada - YA ES CLIENTE
     VENTA_CERRADA = "venta_cerrada"
     PERDIDO = "perdido"
 
