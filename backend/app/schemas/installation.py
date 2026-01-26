@@ -2,10 +2,14 @@
 ZAFESYS Suite - Installation Schemas
 """
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime, date, time
 from decimal import Decimal
-from app.models.installation import InstallationStatus, PaymentStatus, PaymentMethod, TimerStartedBy
+from app.models.installation import InstallationStatus, PaymentStatus, PaymentMethod
+
+
+# Timer started by type - matches the string values in the model
+TimerStartedByType = Literal["admin", "technician"]
 
 
 class InstallationBase(BaseModel):
@@ -63,7 +67,7 @@ class InstallationCompleteRequest(BaseModel):
 # Timer Schemas
 class TimerStartRequest(BaseModel):
     """Request to start installation timer."""
-    started_by: TimerStartedBy
+    started_by: TimerStartedByType
 
 
 class TimerStopRequest(BaseModel):
@@ -76,7 +80,7 @@ class TimerResponse(BaseModel):
     installation_id: int
     timer_started_at: Optional[datetime] = None
     timer_ended_at: Optional[datetime] = None
-    timer_started_by: Optional[TimerStartedBy] = None
+    timer_started_by: Optional[str] = None
     installation_duration_minutes: Optional[int] = None
     is_running: bool = False
     elapsed_minutes: Optional[int] = None  # Current elapsed time if running
@@ -102,7 +106,7 @@ class InstallationResponse(InstallationBase):
     # Timer fields
     timer_started_at: Optional[datetime] = None
     timer_ended_at: Optional[datetime] = None
-    timer_started_by: Optional[TimerStartedBy] = None
+    timer_started_by: Optional[str] = None
     installation_duration_minutes: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
