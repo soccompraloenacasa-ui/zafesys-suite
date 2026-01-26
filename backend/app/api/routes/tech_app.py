@@ -3,7 +3,7 @@ ZAFESYS Suite - Technician Mobile App Routes
 Endpoints for the technician PWA
 """
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from app.api.deps import get_db
 from app import crud
 from app.models.technician import Technician, TechnicianLocation
-from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
+from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod, TimerStartedBy
 from app.core.security import create_access_token
 
 router = APIRouter()
@@ -50,6 +50,11 @@ class TechInstallationResponse(BaseModel):
     total_price: float
     amount_paid: float
     customer_notes: Optional[str]
+    # Timer fields
+    timer_started_at: Optional[datetime] = None
+    timer_ended_at: Optional[datetime] = None
+    timer_started_by: Optional[str] = None
+    installation_duration_minutes: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -71,6 +76,17 @@ class TechAvailabilityRequest(BaseModel):
 class TechCompleteRequest(BaseModel):
     technician_notes: Optional[str] = None
     photo_proof_url: Optional[str] = None
+
+
+# Timer Schema for PWA
+class TechTimerResponse(BaseModel):
+    installation_id: int
+    timer_started_at: Optional[datetime] = None
+    timer_ended_at: Optional[datetime] = None
+    timer_started_by: Optional[str] = None
+    installation_duration_minutes: Optional[int] = None
+    is_running: bool = False
+    elapsed_minutes: Optional[int] = None
 
 
 # GPS Tracking Schemas
@@ -241,7 +257,11 @@ def get_my_installations(
             payment_status=inst.payment_status.value,
             total_price=float(inst.total_price),
             amount_paid=float(inst.amount_paid),
-            customer_notes=inst.customer_notes
+            customer_notes=inst.customer_notes,
+            timer_started_at=inst.timer_started_at,
+            timer_ended_at=inst.timer_ended_at,
+            timer_started_by=inst.timer_started_by.value if inst.timer_started_by else None,
+            installation_duration_minutes=inst.installation_duration_minutes
         ))
 
     return result
@@ -284,7 +304,11 @@ def get_installation_detail(
         payment_status=installation.payment_status.value,
         total_price=float(installation.total_price),
         amount_paid=float(installation.amount_paid),
-        customer_notes=installation.customer_notes
+        customer_notes=installation.customer_notes,
+        timer_started_at=installation.timer_started_at,
+        timer_ended_at=installation.timer_ended_at,
+        timer_started_by=installation.timer_started_by.value if installation.timer_started_by else None,
+        installation_duration_minutes=installation.installation_duration_minutes
     )
 
 
@@ -322,13 +346,165 @@ def update_installation_status(
     installation.status = new_status
 
     if new_status == InstallationStatus.COMPLETADA:
-        installation.completed_at = datetime.now()
+        installation.completed_at = datetime.now(timezone.utc)
 
     db.add(installation)
     db.commit()
 
     return {"message": "Estado actualizado", "status": request.status}
 
+
+# ============================================================
+# TIMER ENDPOINTS FOR TECHNICIAN PWA
+# ============================================================
+
+@router.post("/installations/{installation_id}/timer/start", response_model=TechTimerResponse)
+def start_timer(
+    installation_id: int,
+    technician_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Start the installation timer (from technician PWA).
+    Automatically sets timer_started_by to 'technician'.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instalacion no encontrada"
+        )
+
+    if installation.technician_id != technician_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado"
+        )
+
+    # Check if timer is already running
+    if installation.timer_started_at and not installation.timer_ended_at:
+        # Timer already running, return current status
+        timer_status = crud.installation.get_timer_status(installation)
+        return TechTimerResponse(
+            installation_id=timer_status["installation_id"],
+            timer_started_at=timer_status["timer_started_at"],
+            timer_ended_at=timer_status["timer_ended_at"],
+            timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+            installation_duration_minutes=timer_status["installation_duration_minutes"],
+            is_running=timer_status["is_running"],
+            elapsed_minutes=timer_status["elapsed_minutes"]
+        )
+
+    # Start the timer
+    installation = crud.installation.start_timer(
+        db,
+        db_obj=installation,
+        started_by=TimerStartedBy.TECHNICIAN
+    )
+
+    timer_status = crud.installation.get_timer_status(installation)
+    return TechTimerResponse(
+        installation_id=timer_status["installation_id"],
+        timer_started_at=timer_status["timer_started_at"],
+        timer_ended_at=timer_status["timer_ended_at"],
+        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        installation_duration_minutes=timer_status["installation_duration_minutes"],
+        is_running=timer_status["is_running"],
+        elapsed_minutes=timer_status["elapsed_minutes"]
+    )
+
+
+@router.post("/installations/{installation_id}/timer/stop", response_model=TechTimerResponse)
+def stop_timer(
+    installation_id: int,
+    technician_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Stop the installation timer (from technician PWA).
+    Calculates and stores the duration.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instalacion no encontrada"
+        )
+
+    if installation.technician_id != technician_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado"
+        )
+
+    if installation.timer_started_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El timer no ha sido iniciado"
+        )
+
+    if installation.timer_ended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El timer ya fue detenido"
+        )
+
+    # Stop the timer
+    installation = crud.installation.stop_timer(db, db_obj=installation)
+
+    timer_status = crud.installation.get_timer_status(installation)
+    return TechTimerResponse(
+        installation_id=timer_status["installation_id"],
+        timer_started_at=timer_status["timer_started_at"],
+        timer_ended_at=timer_status["timer_ended_at"],
+        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        installation_duration_minutes=timer_status["installation_duration_minutes"],
+        is_running=timer_status["is_running"],
+        elapsed_minutes=timer_status["elapsed_minutes"]
+    )
+
+
+@router.get("/installations/{installation_id}/timer", response_model=TechTimerResponse)
+def get_timer_status(
+    installation_id: int,
+    technician_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get current timer status for an installation.
+    Shows elapsed time if timer is running.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instalacion no encontrada"
+        )
+
+    if installation.technician_id != technician_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado"
+        )
+
+    timer_status = crud.installation.get_timer_status(installation)
+    return TechTimerResponse(
+        installation_id=timer_status["installation_id"],
+        timer_started_at=timer_status["timer_started_at"],
+        timer_ended_at=timer_status["timer_ended_at"],
+        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        installation_duration_minutes=timer_status["installation_duration_minutes"],
+        is_running=timer_status["is_running"],
+        elapsed_minutes=timer_status["elapsed_minutes"]
+    )
+
+
+# ============================================================
+# PAYMENT & COMPLETION ENDPOINTS
+# ============================================================
 
 @router.post("/installations/{installation_id}/confirm-payment")
 def confirm_payment(
@@ -400,8 +576,12 @@ def complete_installation(
             detail="No autorizado"
         )
 
+    # If timer is running, stop it first
+    if installation.timer_started_at and not installation.timer_ended_at:
+        crud.installation.stop_timer(db, db_obj=installation)
+
     installation.status = InstallationStatus.COMPLETADA
-    installation.completed_at = datetime.now()
+    installation.completed_at = datetime.now(timezone.utc)
 
     if request.technician_notes:
         installation.technician_notes = request.technician_notes
@@ -540,12 +720,15 @@ def get_all_technician_locations(
         Technician.is_active == True
     ).all()
     
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     response = []
     
     for location, technician in results:
         # Calculate minutes since last update
-        time_diff = now - location.recorded_at.replace(tzinfo=None) if location.recorded_at else timedelta(0)
+        recorded_at = location.recorded_at
+        if recorded_at.tzinfo is None:
+            recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+        time_diff = now - recorded_at
         minutes_ago = int(time_diff.total_seconds() / 60)
         
         # Get current installation if any
