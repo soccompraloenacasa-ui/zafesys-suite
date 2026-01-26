@@ -3,7 +3,7 @@
  * Controls for starting/stopping installation timer with real-time elapsed display
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, Square, Clock, User, Shield } from 'lucide-react';
+import { Play, Square, Clock, User, Shield, CheckCircle } from 'lucide-react';
 import type { TimerResponse, TimerStartedBy } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
@@ -31,7 +31,8 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [startedAt, setStartedAt] = useState<Date | null>(null);
   const [startedBy, setStartedBy] = useState<TimerStartedBy | null>(null);
-  const [completedDuration, setCompletedDuration] = useState<number | null>(null);
+  // Use undefined to indicate "no data", null/number for actual values
+  const [completedDuration, setCompletedDuration] = useState<number | null | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,11 +44,16 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
         setIsRunning(true);
         setStartedAt(new Date(initialTimerData.timer_started_at));
         setStartedBy(initialTimerData.timer_started_by || null);
-      } else if (initialTimerData.timer_ended_at && initialTimerData.installation_duration_minutes) {
-        // Timer completed
+        setCompletedDuration(undefined);
+      } else if (initialTimerData.timer_ended_at && typeof initialTimerData.installation_duration_minutes === 'number') {
+        // Timer completed - use typeof to properly handle 0
         setIsRunning(false);
         setCompletedDuration(initialTimerData.installation_duration_minutes);
         setStartedBy(initialTimerData.timer_started_by || null);
+      } else {
+        // No timer data
+        setIsRunning(false);
+        setCompletedDuration(undefined);
       }
     }
   }, [initialTimerData]);
@@ -100,6 +106,7 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
       setStartedBy(data.timer_started_by || null);
       setElapsedMinutes(data.elapsed_minutes || 0);
       setElapsedSeconds(0);
+      setCompletedDuration(undefined);
       
       if (onTimerUpdate) {
         onTimerUpdate(data);
@@ -127,7 +134,12 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
       
       const data: TimerResponse = await response.json();
       setIsRunning(false);
-      setCompletedDuration(data.installation_duration_minutes || null);
+      // Use typeof to properly handle 0 as a valid value
+      setCompletedDuration(
+        typeof data.installation_duration_minutes === 'number' 
+          ? data.installation_duration_minutes 
+          : null
+      );
       
       if (onTimerUpdate) {
         onTimerUpdate(data);
@@ -149,6 +161,9 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
   };
 
   const formatDuration = (totalMinutes: number) => {
+    if (totalMinutes === 0) {
+      return '< 1 minuto';
+    }
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
     if (hrs > 0) {
@@ -156,6 +171,9 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
     }
     return `${mins} minutos`;
   };
+
+  // Check if timer has been completed (number including 0)
+  const isCompleted = typeof completedDuration === 'number';
 
   return (
     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -187,7 +205,7 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
           <div className="text-3xl font-mono font-bold text-green-600 dark:text-green-400">
             {formatTime(elapsedMinutes, elapsedSeconds)}
           </div>
-        ) : completedDuration ? (
+        ) : isCompleted ? (
           <div>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatDuration(completedDuration)}
@@ -199,8 +217,8 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
         )}
       </div>
 
-      {/* Timer Button */}
-      {!completedDuration && (
+      {/* Timer Button - Only show if not completed */}
+      {!isCompleted && (
         <button
           onClick={isRunning ? stopTimer : startTimer}
           disabled={loading || disabled}
@@ -221,9 +239,10 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
       )}
 
       {/* Completed indicator */}
-      {completedDuration && (
-        <div className="text-center text-sm text-green-600 dark:text-green-400 font-medium">
-          ✓ Instalación completada
+      {isCompleted && (
+        <div className="flex items-center justify-center gap-2 text-sm text-green-600 dark:text-green-400 font-medium">
+          <CheckCircle className="w-4 h-4" />
+          Timer completado
         </div>
       )}
     </div>
