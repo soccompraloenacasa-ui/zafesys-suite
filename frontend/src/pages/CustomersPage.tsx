@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle } from 'lucide-react';
+import { Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle } from 'lucide-react';
 import { installationsApi, leadsApi } from '../services/api';
 import type { Installation, Lead } from '../types';
 
