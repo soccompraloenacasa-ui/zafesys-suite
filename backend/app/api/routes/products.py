@@ -125,12 +125,18 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
-    """Delete a product (admin only)."""
+    """Delete a product (soft delete - marks as inactive)."""
     product = crud.product.get(db, id=product_id)
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
+            detail="Producto no encontrado"
         )
-    crud.product.remove(db, id=product_id)
-    return {"message": "Product deleted"}
+    
+    # Soft delete - mark as inactive instead of hard delete
+    # This preserves historical data and avoids foreign key issues
+    product.is_active = False
+    db.add(product)
+    db.commit()
+    
+    return {"message": "Producto eliminado", "id": product_id}
