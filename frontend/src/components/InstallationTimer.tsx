@@ -83,7 +83,7 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/installations/${installationId}/timer/start`, {
+      const response = await fetch(`${API_BASE}/api/v1/installations/${installationId}/timer/start`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ started_by: 'admin' })
@@ -115,7 +115,7 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/installations/${installationId}/timer/stop`, {
+      const response = await fetch(`${API_BASE}/api/v1/installations/${installationId}/timer/stop`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
