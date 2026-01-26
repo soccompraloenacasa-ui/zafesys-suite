@@ -176,6 +176,7 @@ def get_products_inventory(
             min_stock_alert=product.min_stock_alert,
             price=float(product.price),
             is_active=product.is_active,
+            image_url=product.image_url,
             stock_status=stock_status,
             total_sold_30d=stats["total_sold_30d"],
             total_sold_7d=stats["total_sold_7d"],
