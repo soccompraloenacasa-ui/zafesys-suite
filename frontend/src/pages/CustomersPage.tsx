@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle } from 'lucide-react';
+import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List } from 'lucide-react';
 import { installationsApi, leadsApi } from '../services/api';
 import type { Installation, Lead } from '../types';
+import Modal from '../components/common/Modal';
+import { CITIES } from '../constants/cities';
 
 // Installation status labels with colors
 const installationStatusLabels: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -26,13 +28,39 @@ interface CustomerWithInstallation {
   created_at: string;
   installation: Installation;
   installationStatus: string;
+  isManual?: boolean;
 }
+
+// Form data for manual customer creation
+interface CustomerFormData {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  notes: string;
+}
+
+const initialFormData: CustomerFormData = {
+  name: '',
+  phone: '',
+  email: '',
+  address: '',
+  city: '',
+  notes: '',
+};
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerWithInstallation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Modal state for manual customer creation
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
+  const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -131,6 +159,48 @@ export default function CustomersPage() {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`, '_blank');
   };
 
+  // Modal handlers
+  const handleOpenModal = () => {
+    setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData(initialFormData);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      // Create a new lead with the customer data
+      await leadsApi.create({
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        address: formData.address || undefined,
+        city: formData.city || undefined,
+        notes: formData.notes || undefined,
+        status: 'nuevo',
+        source: 'otro',
+      });
+
+      handleCloseModal();
+      fetchData();
+    } catch (error) {
+      console.error('Error creating customer:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -139,9 +209,33 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
           <p className="text-gray-500">Leads con instalaciones agendadas o completadas</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm">
-          <CheckCircle className="w-4 h-4" />
-          Auto-sincronizado
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-white shadow-sm text-cyan-600' : 'text-gray-500 hover:text-gray-700'}`}
+              title="Vista de tarjetas"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-white shadow-sm text-cyan-600' : 'text-gray-500 hover:text-gray-700'}`}
+              title="Vista de tabla"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* New customer button */}
+          <button
+            onClick={handleOpenModal}
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Cliente
+          </button>
         </div>
       </div>
 
@@ -235,14 +329,7 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Info Banner */}
-      <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-cyan-700">
-          <strong>Clientes automáticos:</strong> Cuando creas una instalación en la pestaña <strong>Instalaciones</strong>, el lead aparece aquí automáticamente con el estado actual de su instalación.
-        </p>
-      </div>
-
-      {/* Customers Grid */}
+      {/* Customers Display */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
@@ -252,10 +339,94 @@ export default function CustomersPage() {
           <Users className="w-12 h-12 mb-3 text-gray-300" />
           <p>No hay clientes {filterStatus !== 'all' ? `con estado "${installationStatusLabels[filterStatus]?.label || filterStatus}"` : ''}</p>
           <p className="text-sm text-gray-400 mt-2">
-            Crea instalaciones para ver clientes aquí
+            Crea instalaciones o agrega clientes manualmente
           </p>
         </div>
+      ) : viewMode === 'table' ? (
+        /* Table View */
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Cliente</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Teléfono</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Ciudad</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Instalación</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredCustomers.map((customer) => {
+                  const statusInfo = installationStatusLabels[customer.installationStatus];
+                  return (
+                    <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${statusInfo?.bgColor || 'bg-gray-100'}`}>
+                            <span className={`text-sm font-semibold ${statusInfo?.color || 'text-gray-600'}`}>
+                              {customer.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{customer.name}</p>
+                            {customer.email && <p className="text-xs text-gray-500">{customer.email}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{customer.phone}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{customer.city || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusInfo?.bgColor || 'bg-gray-100'} ${statusInfo?.color || 'text-gray-600'}`}>
+                          <Wrench className="w-3 h-3" />
+                          {statusInfo?.label || customer.installationStatus}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        #{customer.installation.id}
+                        {customer.installation.scheduled_date && (
+                          <span className="ml-1">
+                            - {new Date(customer.installation.scheduled_date).toLocaleDateString('es-CO')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => callPhone(customer.phone)}
+                            className="p-1.5 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
+                            title="Llamar"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openWhatsApp(customer.phone)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="WhatsApp"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </button>
+                          {customer.address && (
+                            <button
+                              onClick={() => openMaps(customer.address!, customer.city)}
+                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Ver en mapa"
+                            >
+                              <MapPin className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* Cards View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map((customer) => {
             const statusInfo = installationStatusLabels[customer.installationStatus];
@@ -346,6 +517,134 @@ export default function CustomersPage() {
           })}
         </div>
       )}
+
+      {/* Modal for manual customer creation */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title="Nuevo Cliente"
+        subtitle="Agregar cliente manualmente"
+        footer={
+          <>
+            <button
+              onClick={handleCloseModal}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !formData.name || !formData.phone}
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Guardando...' : 'Crear Cliente'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-amber-700">
+              <strong>Nota:</strong> Este cliente se creará como un Lead. Para que aparezca en esta lista con estado de instalación, debes crear una instalación desde la pestaña <strong>Instalaciones</strong>.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nombre *
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="Nombre completo"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Teléfono *
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                placeholder="3001234567"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="cliente@email.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Dirección
+              </label>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                placeholder="Calle 123 #45-67"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ciudad
+              </label>
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              >
+                <option value="">Seleccionar...</option>
+                {CITIES.map((city) => (
+                  <option key={city.value} value={city.label}>
+                    {city.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notas
+            </label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleInputChange}
+              rows={2}
+              placeholder="Notas adicionales..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
