@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -19,12 +19,16 @@ import {
   AlertTriangle,
   X,
   ZoomIn,
+  Play,
+  Square,
+  Timer,
 } from 'lucide-react';
 import { techApi } from '../../services/api';
 import Modal from '../../components/common/Modal';
 
 // Número de WhatsApp del admin para recibir notificaciones
 const ADMIN_WHATSAPP = '573011917572';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
 interface TechInstallation {
   id: number;
@@ -43,6 +47,11 @@ interface TechInstallation {
   total_price: number;
   amount_paid: number;
   customer_notes: string | null;
+  // Timer fields
+  timer_started_at?: string;
+  timer_ended_at?: string;
+  timer_started_by?: string;
+  installation_duration_minutes?: number;
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -62,6 +71,12 @@ export default function TechInstallationPage() {
   const [updating, setUpdating] = useState(false);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
 
+  // Timer state
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timerStartedAt, setTimerStartedAt] = useState<Date | null>(null);
+
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -73,6 +88,37 @@ export default function TechInstallationPage() {
 
   const techId = parseInt(localStorage.getItem('tech_id') || '0');
   const techName = localStorage.getItem('tech_name') || 'Técnico';
+
+  // Initialize timer from installation data
+  useEffect(() => {
+    if (installation) {
+      if (installation.timer_started_at && !installation.timer_ended_at) {
+        setTimerRunning(true);
+        setTimerStartedAt(new Date(installation.timer_started_at));
+      } else if (installation.timer_ended_at) {
+        setTimerRunning(false);
+      }
+    }
+  }, [installation]);
+
+  // Real-time timer update
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    
+    if (timerRunning && timerStartedAt) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const diffMs = now.getTime() - timerStartedAt.getTime();
+        const totalSeconds = Math.floor(diffMs / 1000);
+        setElapsedMinutes(Math.floor(totalSeconds / 60));
+        setElapsedSeconds(totalSeconds % 60);
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerRunning, timerStartedAt]);
 
   useEffect(() => {
     if (!techId || !id) {
@@ -98,11 +144,57 @@ export default function TechInstallationPage() {
     }
   };
 
+  const startTimer = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/tech/installations/${id}/timer/start?technician_id=${techId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTimerRunning(data.is_running);
+        if (data.timer_started_at) {
+          setTimerStartedAt(new Date(data.timer_started_at));
+        }
+      }
+    } catch (error) {
+      console.error('Error starting timer:', error);
+    }
+  }, [id, techId]);
+
+  const stopTimer = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/tech/installations/${id}/timer/stop?technician_id=${techId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTimerRunning(false);
+        if (installation) {
+          setInstallation({
+            ...installation,
+            installation_duration_minutes: data.installation_duration_minutes
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error stopping timer:', error);
+    }
+  }, [id, techId, installation]);
+
   const handleStatusUpdate = async (newStatus: string) => {
     setUpdating(true);
     try {
       await techApi.updateStatus(parseInt(id!), techId, newStatus);
       setInstallation((prev) => prev ? { ...prev, status: newStatus } : null);
+      
+      // Auto-start timer when starting installation
+      if (newStatus === 'en_progreso') {
+        await startTimer();
+      }
     } catch (error) {
       console.error('Error updating status:', error);
     } finally {
@@ -145,7 +237,11 @@ export default function TechInstallationPage() {
       ? `${installation.address}, ${installation.city}`
       : installation.address;
 
-    const message = `✅ *INSTALACIÓN EXITOSA*\n\n👨‍🔧 *Técnico:* ${techName}\n👤 *Cliente:* ${installation.lead_name}\n📱 *Tel Cliente:* ${installation.lead_phone}\n🔐 *Producto:* ${installation.product_name} (${installation.product_model})\n📍 *Dirección:* ${fullAddress}\n💰 *Total:* $${installation.total_price.toLocaleString()}\n💳 *Pagado:* $${installation.amount_paid.toLocaleString()}\n${techNotes ? `📝 *Notas:* ${techNotes}` : ''}\n\n🕐 ${new Date().toLocaleString('es-CO')}`;
+    const durationText = installation.installation_duration_minutes 
+      ? `\n⏱️ *Duración:* ${Math.floor(installation.installation_duration_minutes / 60)}h ${installation.installation_duration_minutes % 60}min`
+      : '';
+
+    const message = `✅ *INSTALACIÓN EXITOSA*\n\n👨‍🔧 *Técnico:* ${techName}\n👤 *Cliente:* ${installation.lead_name}\n📱 *Tel Cliente:* ${installation.lead_phone}\n🔐 *Producto:* ${installation.product_name} (${installation.product_model})\n📍 *Dirección:* ${fullAddress}\n💰 *Total:* $${installation.total_price.toLocaleString()}\n💳 *Pagado:* $${installation.amount_paid.toLocaleString()}${durationText}\n${techNotes ? `📝 *Notas:* ${techNotes}` : ''}\n\n🕐 ${new Date().toLocaleString('es-CO')}`;
 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodedMessage}`, '_blank');
@@ -154,6 +250,11 @@ export default function TechInstallationPage() {
   const handleComplete = async () => {
     setUpdating(true);
     try {
+      // Stop timer first if running
+      if (timerRunning) {
+        await stopTimer();
+      }
+      
       await techApi.completeInstallation(parseInt(id!), techId, techNotes || undefined);
       setInstallation((prev) =>
         prev ? { ...prev, status: 'completada' } : null
@@ -189,6 +290,16 @@ export default function TechInstallationPage() {
     window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
+  const formatTime = (minutes: number, seconds: number) => {
+    const hrs = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const secs = seconds;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -205,6 +316,7 @@ export default function TechInstallationPage() {
   const remaining = installation.total_price - installation.amount_paid;
   const isCompleted = installation.status === 'completada';
   const isPaid = installation.payment_status === 'pagado';
+  const isInProgress = installation.status === 'en_progreso';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -235,6 +347,52 @@ export default function TechInstallationPage() {
             <div>
               <p className="font-semibold text-green-800">¡Instalación Completada!</p>
               <p className="text-sm text-green-600">Buen trabajo 🎉</p>
+              {installation.installation_duration_minutes && (
+                <p className="text-xs text-green-600 mt-1">
+                  Duración: {Math.floor(installation.installation_duration_minutes / 60)}h {installation.installation_duration_minutes % 60}min
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Timer Display - Show when in progress */}
+        {isInProgress && (
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-4 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Timer className="w-5 h-5" />
+                <span className="font-medium">Timer de Instalación</span>
+              </div>
+              {timerRunning && (
+                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full animate-pulse">
+                  En curso
+                </span>
+              )}
+            </div>
+            <div className="text-center my-4">
+              <div className="text-4xl font-mono font-bold">
+                {formatTime(elapsedMinutes, elapsedSeconds)}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {!timerRunning ? (
+                <button
+                  onClick={startTimer}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/20 hover:bg-white/30 rounded-lg font-medium transition-colors"
+                >
+                  <Play className="w-5 h-5" />
+                  Iniciar Timer
+                </button>
+              ) : (
+                <button
+                  onClick={stopTimer}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500/80 hover:bg-red-500 rounded-lg font-medium transition-colors"
+                >
+                  <Square className="w-5 h-5" />
+                  Detener Timer
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -442,9 +600,11 @@ export default function TechInstallationPage() {
                 {updating ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Wrench className="w-5 h-5" />
+                  <>
+                    <Play className="w-5 h-5" />
+                    Iniciar Instalacion
+                  </>
                 )}
-                Iniciar Instalacion
               </button>
             )}
 
@@ -596,6 +756,17 @@ export default function TechInstallationPage() {
         }
       >
         <div className="space-y-4">
+          {timerRunning && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <p className="text-sm text-purple-700 flex items-center gap-2">
+                <Timer className="w-4 h-4" />
+                El timer se detendrá automáticamente al completar.
+                <br />
+                Tiempo actual: <strong>{formatTime(elapsedMinutes, elapsedSeconds)}</strong>
+              </p>
+            </div>
+          )}
+          
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm text-green-700">
               Al completar, se enviará un mensaje de WhatsApp con el resumen de la instalación al administrador.
