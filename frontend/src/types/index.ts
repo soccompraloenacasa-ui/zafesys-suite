@@ -1,5 +1,5 @@
 // Lead types
-export type LeadStatus = 'nuevo' | 'en_conversacion' | 'potencial' | 'venta_cerrada' | 'perdido';
+export type LeadStatus = 'nuevo' | 'en_conversacion' | 'potencial' | 'agendado' | 'instalado' | 'venta_cerrada' | 'perdido';
 export type LeadSource = 'website' | 'whatsapp' | 'elevenlabs' | 'ana_voice' | 'referido' | 'otro';
 
 export interface Lead {
@@ -35,6 +35,8 @@ export interface KanbanData {
   nuevo: LeadKanban[];
   en_conversacion: LeadKanban[];
   potencial: LeadKanban[];
+  agendado: LeadKanban[];
+  instalado: LeadKanban[];
   venta_cerrada: LeadKanban[];
   perdido: LeadKanban[];
 }
