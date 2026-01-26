@@ -20,6 +20,8 @@ const columns: { id: LeadStatus; title: string; color: string }[] = [
   { id: 'nuevo', title: 'Nuevo', color: 'bg-blue-500' },
   { id: 'en_conversacion', title: 'En conversación', color: 'bg-yellow-500' },
   { id: 'potencial', title: 'Potencial', color: 'bg-purple-500' },
+  { id: 'agendado', title: '📅 Agendado', color: 'bg-cyan-500' },
+  { id: 'instalado', title: '✅ Instalado', color: 'bg-emerald-500' },
   { id: 'venta_cerrada', title: 'Venta cerrada', color: 'bg-green-500' },
   { id: 'perdido', title: 'Perdido', color: 'bg-red-500' },
 ];
@@ -59,6 +61,8 @@ export default function LeadsPage() {
     nuevo: [],
     en_conversacion: [],
     potencial: [],
+    agendado: [],
+    instalado: [],
     venta_cerrada: [],
     perdido: [],
   });
@@ -83,7 +87,16 @@ export default function LeadsPage() {
     try {
       setLoading(true);
       const data = await leadsApi.getKanban();
-      setKanbanData(data);
+      // Ensure all columns exist (in case backend doesn't return empty arrays)
+      setKanbanData({
+        nuevo: data.nuevo || [],
+        en_conversacion: data.en_conversacion || [],
+        potencial: data.potencial || [],
+        agendado: data.agendado || [],
+        instalado: data.instalado || [],
+        venta_cerrada: data.venta_cerrada || [],
+        perdido: data.perdido || [],
+      });
     } catch (error) {
       console.error('Error fetching kanban:', error);
     } finally {
