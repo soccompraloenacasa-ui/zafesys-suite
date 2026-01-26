@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2 } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
@@ -118,6 +118,9 @@ export default function InstallationsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedInstallation, setSelectedInstallation] = useState<InstallationDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Image lightbox state
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
 
   // Options for selects
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -308,6 +311,15 @@ export default function InstallationsPage() {
       p.product_id === productId ? { ...p, quantity: newQuantity } : p
     );
     setSelectedProducts(updated);
+  };
+
+  // Image lightbox handlers
+  const handleOpenImage = (url: string, name: string) => {
+    setEnlargedImage({ url, name });
+  };
+
+  const handleCloseImage = () => {
+    setEnlargedImage(null);
   };
 
   // Detail modal handlers
@@ -732,6 +744,39 @@ export default function InstallationsPage() {
         </div>
       )}
 
+      {/* Image Lightbox Modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
+          onClick={handleCloseImage}
+        >
+          <div 
+            className="relative max-w-3xl max-h-[90vh] bg-white rounded-xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={handleCloseImage}
+              className="absolute top-3 right-3 z-10 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            {/* Product name */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+              <p className="text-white font-medium text-lg">{enlargedImage.name}</p>
+            </div>
+            
+            {/* Image */}
+            <img
+              src={enlargedImage.url}
+              alt={enlargedImage.name}
+              className="max-w-full max-h-[85vh] object-contain"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Installation Detail Modal */}
       {isDetailModalOpen && selectedInstallation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -856,7 +901,14 @@ export default function InstallationsPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Producto</h3>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    <div 
+                      className={`w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center overflow-hidden ${selectedInstallation.product?.image_url ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400 transition-all' : ''}`}
+                      onClick={() => {
+                        if (selectedInstallation.product?.image_url) {
+                          handleOpenImage(selectedInstallation.product.image_url, selectedInstallation.product.name);
+                        }
+                      }}
+                    >
                       {selectedInstallation.product?.image_url ? (
                         <img 
                           src={selectedInstallation.product.image_url} 
@@ -1215,14 +1267,26 @@ export default function InstallationsPage() {
                       key={item.product_id}
                       className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border border-gray-200"
                     >
-                      {/* Product thumbnail - small (36px) */}
-                      <div className="w-9 h-9 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
+                      {/* Product thumbnail - small (36px) - clickable */}
+                      <div 
+                        className={`w-9 h-9 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center relative group ${item.product_image ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400' : ''}`}
+                        onClick={() => {
+                          if (item.product_image) {
+                            handleOpenImage(item.product_image, item.product_name);
+                          }
+                        }}
+                      >
                         {item.product_image ? (
-                          <img 
-                            src={item.product_image} 
-                            alt={item.product_name}
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img 
+                              src={item.product_image} 
+                              alt={item.product_name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </>
                         ) : (
                           <Package className="w-4 h-4 text-gray-400" />
                         )}
@@ -1429,14 +1493,26 @@ export default function InstallationsPage() {
                 <div className="space-y-2 text-sm">
                   {selectedProducts.map((item) => (
                     <div key={item.product_id} className="flex items-center gap-3">
-                      {/* Product thumbnail - larger (48px) */}
-                      <div className="w-12 h-12 bg-white rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-cyan-200">
+                      {/* Product thumbnail - larger (48px) - clickable */}
+                      <div 
+                        className={`w-12 h-12 bg-white rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-cyan-200 relative group ${item.product_image ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400' : ''}`}
+                        onClick={() => {
+                          if (item.product_image) {
+                            handleOpenImage(item.product_image, item.product_name);
+                          }
+                        }}
+                      >
                         {item.product_image ? (
-                          <img 
-                            src={item.product_image} 
-                            alt={item.product_name}
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img 
+                              src={item.product_image} 
+                              alt={item.product_name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </>
                         ) : (
                           <Package className="w-6 h-6 text-cyan-400" />
                         )}
