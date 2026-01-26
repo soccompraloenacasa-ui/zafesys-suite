@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, date, time
 from decimal import Decimal
-from app.models.installation import InstallationStatus, PaymentStatus, PaymentMethod
+from app.models.installation import InstallationStatus, PaymentStatus, PaymentMethod, TimerStartedBy
 
 
 class InstallationBase(BaseModel):
@@ -60,6 +60,31 @@ class InstallationCompleteRequest(BaseModel):
     photo_proof_url: Optional[str] = None
 
 
+# Timer Schemas
+class TimerStartRequest(BaseModel):
+    """Request to start installation timer."""
+    started_by: TimerStartedBy
+
+
+class TimerStopRequest(BaseModel):
+    """Request to stop installation timer."""
+    pass  # No additional data needed, just stop the timer
+
+
+class TimerResponse(BaseModel):
+    """Response with timer information."""
+    installation_id: int
+    timer_started_at: Optional[datetime] = None
+    timer_ended_at: Optional[datetime] = None
+    timer_started_by: Optional[TimerStartedBy] = None
+    installation_duration_minutes: Optional[int] = None
+    is_running: bool = False
+    elapsed_minutes: Optional[int] = None  # Current elapsed time if running
+
+    class Config:
+        from_attributes = True
+
+
 class InstallationResponse(InstallationBase):
     id: int
     technician_id: Optional[int] = None
@@ -74,6 +99,11 @@ class InstallationResponse(InstallationBase):
     internal_notes: Optional[str] = None
     completed_at: Optional[datetime] = None
     photo_proof_url: Optional[str] = None
+    # Timer fields
+    timer_started_at: Optional[datetime] = None
+    timer_ended_at: Optional[datetime] = None
+    timer_started_by: Optional[TimerStartedBy] = None
+    installation_duration_minutes: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

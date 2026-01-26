@@ -2,10 +2,11 @@
 ZAFESYS Suite - Installation CRUD Operations
 """
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 from app.crud.base import CRUDBase
 from app.models import Installation, InstallationStatus, PaymentStatus
+from app.models.installation import TimerStartedBy
 from app.schemas import InstallationCreate, InstallationUpdate
 
 
@@ -116,7 +117,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         """Update installation status."""
         db_obj.status = status
         if status == InstallationStatus.COMPLETADA:
-            db_obj.completed_at = datetime.utcnow()
+            db_obj.completed_at = datetime.now(timezone.utc)
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
@@ -152,7 +153,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
     ) -> Installation:
         """Mark installation as completed."""
         db_obj.status = InstallationStatus.COMPLETADA
-        db_obj.completed_at = datetime.utcnow()
+        db_obj.completed_at = datetime.now(timezone.utc)
         if technician_notes:
             db_obj.technician_notes = technician_notes
         if photo_proof_url:
@@ -161,6 +162,80 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         db.commit()
         db.refresh(db_obj)
         return db_obj
+
+    def start_timer(
+        self,
+        db: Session,
+        *,
+        db_obj: Installation,
+        started_by: TimerStartedBy
+    ) -> Installation:
+        """
+        Start the installation timer.
+        Can be started by admin or technician.
+        If timer is already running, this is a no-op.
+        """
+        # Only start if not already running
+        if db_obj.timer_started_at is None or db_obj.timer_ended_at is not None:
+            db_obj.timer_started_at = datetime.now(timezone.utc)
+            db_obj.timer_ended_at = None  # Reset end time in case of restart
+            db_obj.timer_started_by = started_by
+            db_obj.installation_duration_minutes = None  # Reset duration
+            # Also update status to EN_PROGRESO if not already
+            if db_obj.status not in [InstallationStatus.EN_PROGRESO, InstallationStatus.COMPLETADA]:
+                db_obj.status = InstallationStatus.EN_PROGRESO
+            db.add(db_obj)
+            db.commit()
+            db.refresh(db_obj)
+        return db_obj
+
+    def stop_timer(
+        self,
+        db: Session,
+        *,
+        db_obj: Installation
+    ) -> Installation:
+        """
+        Stop the installation timer and calculate duration.
+        """
+        if db_obj.timer_started_at is not None and db_obj.timer_ended_at is None:
+            db_obj.timer_ended_at = datetime.now(timezone.utc)
+            # Calculate duration in minutes
+            if db_obj.timer_started_at:
+                delta = db_obj.timer_ended_at - db_obj.timer_started_at
+                db_obj.installation_duration_minutes = int(delta.total_seconds() / 60)
+            db.add(db_obj)
+            db.commit()
+            db.refresh(db_obj)
+        return db_obj
+
+    def get_timer_status(
+        self,
+        db_obj: Installation
+    ) -> dict:
+        """
+        Get current timer status for an installation.
+        Returns dict with timer info and current elapsed time if running.
+        """
+        is_running = (
+            db_obj.timer_started_at is not None and 
+            db_obj.timer_ended_at is None
+        )
+        elapsed_minutes = None
+        
+        if is_running and db_obj.timer_started_at:
+            delta = datetime.now(timezone.utc) - db_obj.timer_started_at
+            elapsed_minutes = int(delta.total_seconds() / 60)
+        
+        return {
+            "installation_id": db_obj.id,
+            "timer_started_at": db_obj.timer_started_at,
+            "timer_ended_at": db_obj.timer_ended_at,
+            "timer_started_by": db_obj.timer_started_by,
+            "installation_duration_minutes": db_obj.installation_duration_minutes,
+            "is_running": is_running,
+            "elapsed_minutes": elapsed_minutes
+        }
 
     def count_by_status(self, db: Session) -> dict:
         """Count installations by status."""
@@ -181,6 +256,27 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
             .filter(Installation.scheduled_date == today)
             .count()
         )
+
+    def get_technician_avg_duration(
+        self,
+        db: Session,
+        *,
+        technician_id: int
+    ) -> Optional[float]:
+        """
+        Calculate average installation duration for a technician.
+        Only considers completed installations with timer data.
+        """
+        from sqlalchemy import func as sql_func
+        result = (
+            db.query(sql_func.avg(Installation.installation_duration_minutes))
+            .filter(
+                Installation.technician_id == technician_id,
+                Installation.installation_duration_minutes.isnot(None)
+            )
+            .scalar()
+        )
+        return float(result) if result else None
 
 
 installation = CRUDInstallation(Installation)

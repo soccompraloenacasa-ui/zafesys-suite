@@ -11,6 +11,7 @@ from app.schemas import (
     InstallationCreate, InstallationUpdate, InstallationResponse,
     InstallationStatusUpdate, InstallationPaymentUpdate, InstallationCompleteRequest
 )
+from app.schemas.installation import TimerStartRequest, TimerResponse
 from app.models import User, InstallationStatus
 
 router = APIRouter()
@@ -205,6 +206,93 @@ def complete_installation(
         photo_proof_url=complete_in.photo_proof_url
     )
     return installation
+
+
+# ============== TIMER ENDPOINTS ==============
+
+@router.post("/{installation_id}/timer/start", response_model=TimerResponse)
+def start_installation_timer(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    timer_in: TimerStartRequest
+):
+    """
+    Start the installation timer.
+    Can be started by admin or technician.
+    If timer is already running, returns current timer status.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    installation = crud.installation.start_timer(
+        db,
+        db_obj=installation,
+        started_by=timer_in.started_by
+    )
+    
+    return crud.installation.get_timer_status(installation)
+
+
+@router.post("/{installation_id}/timer/stop", response_model=TimerResponse)
+def stop_installation_timer(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Stop the installation timer.
+    Calculates and stores the total duration.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    if installation.timer_started_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Timer has not been started"
+        )
+    
+    if installation.timer_ended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Timer has already been stopped"
+        )
+    
+    installation = crud.installation.stop_timer(db, db_obj=installation)
+    
+    return crud.installation.get_timer_status(installation)
+
+
+@router.get("/{installation_id}/timer", response_model=TimerResponse)
+def get_installation_timer(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the current timer status for an installation.
+    Includes elapsed time if timer is running.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+    
+    return crud.installation.get_timer_status(installation)
 
 
 @router.delete("/{installation_id}")

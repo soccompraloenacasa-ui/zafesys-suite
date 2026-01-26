@@ -31,6 +31,11 @@ class PaymentMethod(str, enum.Enum):
     DAVIPLATA = "daviplata"
 
 
+class TimerStartedBy(str, enum.Enum):
+    ADMIN = "admin"
+    TECHNICIAN = "technician"
+
+
 class Installation(Base):
     __tablename__ = "installations"
 
@@ -75,6 +80,12 @@ class Installation(Base):
     customer_notes = Column(Text, nullable=True)  # Notes from customer
     technician_notes = Column(Text, nullable=True)  # Notes from technician after installation
     internal_notes = Column(Text, nullable=True)  # Admin notes
+
+    # Installation Timer - Track actual installation duration
+    timer_started_at = Column(DateTime(timezone=True), nullable=True)  # When timer was started
+    timer_ended_at = Column(DateTime(timezone=True), nullable=True)    # When timer was stopped
+    timer_started_by = Column(SQLEnum(TimerStartedBy), nullable=True)  # Who started: admin or technician
+    installation_duration_minutes = Column(Integer, nullable=True)     # Calculated duration in minutes
 
     # Completion
     completed_at = Column(DateTime(timezone=True), nullable=True)
