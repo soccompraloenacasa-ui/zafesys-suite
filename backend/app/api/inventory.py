@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.database import get_db
 from app.models.product import Product
@@ -18,13 +18,14 @@ from app.schemas.inventory import (
     InventorySummary,
     StockAdjustmentRequest,
 )
+from app.core.timezone import now_colombia, today_colombia
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 
 def calculate_product_stats(db: Session, product: Product) -> dict:
     """Calculate sales statistics for a product"""
-    now = datetime.utcnow()
+    now = now_colombia()
     thirty_days_ago = now - timedelta(days=30)
     seven_days_ago = now - timedelta(days=7)
     
@@ -97,9 +98,12 @@ def get_stock_status(product: Product) -> str:
 @router.get("/summary", response_model=InventorySummary)
 def get_inventory_summary(db: Session = Depends(get_db)):
     """Get overall inventory summary with alerts"""
-    now = datetime.utcnow()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = today_start - timedelta(days=7)
+    now = now_colombia()
+    today_start = today_colombia()
+    # Convert to datetime at start of day
+    from datetime import datetime, time
+    today_start_dt = datetime.combine(today_start, time.min)
+    week_start = today_start_dt - timedelta(days=7)
     thirty_days_ago = now - timedelta(days=30)
     
     # Get all active products
@@ -126,7 +130,7 @@ def get_inventory_summary(db: Session = Depends(get_db)):
     
     # Count movements
     movements_today = db.query(func.count(InventoryMovement.id)).filter(
-        InventoryMovement.created_at >= today_start
+        InventoryMovement.created_at >= today_start_dt
     ).scalar() or 0
     
     movements_week = db.query(func.count(InventoryMovement.id)).filter(
