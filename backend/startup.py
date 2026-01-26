@@ -120,6 +120,31 @@ def create_missing_tables():
         except Exception as e:
             print(f"customer_id: {e}")
         
+        # Add timer columns to installations (for tracking installation duration)
+        try:
+            conn.execute(text("ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_at TIMESTAMP WITH TIME ZONE;"))
+            print("Checked timer_started_at column on installations")
+        except Exception as e:
+            print(f"timer_started_at: {e}")
+        
+        try:
+            conn.execute(text("ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_ended_at TIMESTAMP WITH TIME ZONE;"))
+            print("Checked timer_ended_at column on installations")
+        except Exception as e:
+            print(f"timer_ended_at: {e}")
+        
+        try:
+            conn.execute(text("ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_by VARCHAR(20);"))
+            print("Checked timer_started_by column on installations")
+        except Exception as e:
+            print(f"timer_started_by: {e}")
+        
+        try:
+            conn.execute(text("ALTER TABLE installations ADD COLUMN IF NOT EXISTS installation_duration_minutes INTEGER;"))
+            print("Checked installation_duration_minutes column on installations")
+        except Exception as e:
+            print(f"installation_duration_minutes: {e}")
+        
         conn.commit()
         print("Database setup complete!")
 
