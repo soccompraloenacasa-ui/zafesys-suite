@@ -133,6 +133,7 @@ export interface Technician {
 export type InstallationStatus = 'pendiente' | 'programada' | 'en_camino' | 'en_progreso' | 'completada' | 'cancelada';
 export type PaymentStatus = 'pendiente' | 'parcial' | 'pagado';
 export type PaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta' | 'nequi' | 'daviplata';
+export type TimerStartedBy = 'admin' | 'technician';
 
 export interface Installation {
   id: number;
@@ -156,7 +157,23 @@ export interface Installation {
   internal_notes?: string;
   completed_at?: string;
   photo_proof_url?: string;
+  // Timer fields
+  timer_started_at?: string;
+  timer_ended_at?: string;
+  timer_started_by?: TimerStartedBy;
+  installation_duration_minutes?: number;
   created_at: string;
+}
+
+// Timer response type
+export interface TimerResponse {
+  installation_id: number;
+  timer_started_at?: string;
+  timer_ended_at?: string;
+  timer_started_by?: TimerStartedBy;
+  installation_duration_minutes?: number;
+  is_running: boolean;
+  elapsed_minutes?: number;
 }
 
 // User types
