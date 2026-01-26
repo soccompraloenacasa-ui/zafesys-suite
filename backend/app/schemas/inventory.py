@@ -53,6 +53,7 @@ class ProductInventoryResponse(BaseModel):
     min_stock_alert: int
     price: float
     is_active: bool
+    image_url: Optional[str] = None
     
     # Calculated fields
     stock_status: str  # ok, low, critical
