@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import { getColombiaDate, getWeekDaysColombia, isTodayColombia, formatDateColombia, isSameDayColombia } from '../utils/timezone';
-import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
+import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource, TimerResponse } from '../types';
 import Modal from '../components/common/Modal';
 import InstallationTimer from '../components/InstallationTimer';
 import { CITIES } from '../constants/cities';
@@ -614,6 +614,26 @@ export default function InstallationsPage() {
     }
   };
 
+  // Handler for timer updates - actualiza tanto el timer como selectedInstallation
+  const handleTimerUpdate = (timerData: TimerResponse) => {
+    // Actualizar selectedInstallation con los datos del timer
+    if (selectedInstallation) {
+      setSelectedInstallation(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          timer_started_at: timerData.timer_started_at,
+          timer_ended_at: timerData.timer_ended_at,
+          timer_started_by: timerData.timer_started_by,
+          installation_duration_minutes: timerData.installation_duration_minutes,
+        };
+      });
+    }
+    
+    // También actualizar la lista de instalaciones
+    fetchInstallations();
+  };
+
   // Calculate price breakdown for display
   const priceBreakdown = selectedProducts.length > 0 
     ? calculateTotalPrice(
@@ -961,9 +981,7 @@ export default function InstallationsPage() {
                       timer_started_by: selectedInstallation.timer_started_by,
                       installation_duration_minutes: selectedInstallation.installation_duration_minutes
                     }}
-                    onTimerUpdate={() => {
-                      fetchInstallations();
-                    }}
+                    onTimerUpdate={handleTimerUpdate}
                   />
                 </div>
 
