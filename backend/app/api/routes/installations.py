@@ -13,6 +13,7 @@ from app.schemas import (
 )
 from app.schemas.installation import TimerStartRequest, TimerResponse
 from app.models import User, InstallationStatus
+from app.core.timezone import today_colombia
 
 router = APIRouter()
 
@@ -49,7 +50,8 @@ def get_installations_by_date(
 ):
     """Get installations for a specific date."""
     if target_date is None:
-        target_date = date.today()
+        # Use Colombia timezone for "today"
+        target_date = today_colombia()
     return crud.installation.get_by_date(db, target_date=target_date, technician_id=technician_id)
 
 
