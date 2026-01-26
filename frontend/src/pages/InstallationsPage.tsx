@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
+import { getColombiaDate, getWeekDaysColombia, isTodayColombia, formatDateColombia, isSameDayColombia } from '../utils/timezone';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
 import InstallationTimer from '../components/InstallationTimer';
@@ -98,7 +99,7 @@ interface InstallationDetail extends Installation {
 export default function InstallationsPage() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(getColombiaDate());
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -173,12 +174,7 @@ export default function InstallationsPage() {
   }, []);
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('es-CO', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatDateColombia(date);
   };
 
   const navigateWeek = (direction: number) => {
@@ -188,32 +184,18 @@ export default function InstallationsPage() {
   };
 
   const getWeekDays = () => {
-    const days = [];
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay() + 1);
-
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(startOfWeek);
-      day.setDate(startOfWeek.getDate() + i);
-      days.push(day);
-    }
-    return days;
+    return getWeekDaysColombia(currentDate);
   };
 
   const getInstallationsForDay = (day: Date) => {
     return installations.filter((inst) => {
       if (!inst.scheduled_date) return false;
-      const instDate = new Date(inst.scheduled_date);
-      return (
-        instDate.getDate() === day.getDate() &&
-        instDate.getMonth() === day.getMonth() &&
-        instDate.getFullYear() === day.getFullYear()
-      );
+      return isSameDayColombia(inst.scheduled_date, day);
     });
   };
 
   const weekDays = getWeekDays();
-  const today = new Date();
+  const today = getColombiaDate();
 
   // Calculate total price with discount or surcharge (updated for multiple products)
   const calculateTotalPrice = (
@@ -690,10 +672,7 @@ export default function InstallationsPage() {
       ) : (
         <div className="grid grid-cols-7 gap-4">
           {weekDays.map((day) => {
-            const isToday =
-              day.getDate() === today.getDate() &&
-              day.getMonth() === today.getMonth() &&
-              day.getFullYear() === today.getFullYear();
+            const isToday = isTodayColombia(day);
             const dayInstallations = getInstallationsForDay(day);
 
             return (
