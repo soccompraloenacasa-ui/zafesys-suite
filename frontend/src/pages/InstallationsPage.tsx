@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
+import InstallationTimer from '../components/InstallationTimer';
 import { CITIES } from '../constants/cities';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -966,6 +967,26 @@ export default function InstallationsPage() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Installation Timer */}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-orange-800 uppercase mb-3 flex items-center gap-2">
+                    <Timer className="w-4 h-4" />
+                    Tiempo de Instalación
+                  </h3>
+                  <InstallationTimer
+                    installationId={selectedInstallation.id}
+                    initialTimerData={{
+                      timer_started_at: selectedInstallation.timer_started_at,
+                      timer_ended_at: selectedInstallation.timer_ended_at,
+                      timer_started_by: selectedInstallation.timer_started_by,
+                      installation_duration_minutes: selectedInstallation.installation_duration_minutes
+                    }}
+                    onTimerUpdate={() => {
+                      fetchInstallations();
+                    }}
+                  />
                 </div>
 
                 {/* Pago */}
