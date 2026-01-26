@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer, AlertTriangle } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import { getColombiaDate, getWeekDaysColombia, isTodayColombia, formatDateColombia, isSameDayColombia } from '../utils/timezone';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource, TimerResponse } from '../types';
@@ -27,6 +27,9 @@ const INSTALLATION_PRICES = [
   { value: '189000', label: '$189,000 - Instalación estándar' },
   { value: '250000', label: '$250,000 - Instalación + desplazamiento' },
 ];
+
+// Time threshold for overtime alert (in minutes)
+const OVERTIME_THRESHOLD_MINUTES = 90;
 
 // Price adjustment types - includes both discounts and surcharges
 type PriceAdjustmentType = 'none' | 'discount_percentage' | 'discount_value' | 'surcharge_percentage' | 'surcharge_value';
@@ -109,10 +112,36 @@ const formatDurationMinutes = (minutes: number): string => {
   return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
 };
 
+// Helper function to calculate elapsed minutes from timer_started_at
+const getElapsedMinutes = (timerStartedAt: string | undefined): number => {
+  if (!timerStartedAt) return 0;
+  const started = new Date(timerStartedAt);
+  const now = new Date();
+  const diffMs = now.getTime() - started.getTime();
+  return Math.floor(diffMs / 1000 / 60);
+};
+
+// Helper function to check if installation is overtime
+const isInstallationOvertime = (inst: Installation): { isOvertime: boolean; elapsedMinutes: number; overtimeMinutes: number } => {
+  // Only check for "en_progreso" status with active timer
+  if (inst.status !== 'en_progreso' || !inst.timer_started_at || inst.timer_ended_at) {
+    return { isOvertime: false, elapsedMinutes: 0, overtimeMinutes: 0 };
+  }
+  
+  const elapsedMinutes = getElapsedMinutes(inst.timer_started_at);
+  const isOvertime = elapsedMinutes >= OVERTIME_THRESHOLD_MINUTES;
+  const overtimeMinutes = isOvertime ? elapsedMinutes - OVERTIME_THRESHOLD_MINUTES : 0;
+  
+  return { isOvertime, elapsedMinutes, overtimeMinutes };
+};
+
 export default function InstallationsPage() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(getColombiaDate());
+  
+  // Tick state for real-time updates (updates every minute)
+  const [, setTick] = useState(0);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -169,6 +198,15 @@ export default function InstallationsPage() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Real-time tick for overtime calculations (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 30000); // Update every 30 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchInstallations = async () => {
@@ -739,17 +777,37 @@ export default function InstallationsPage() {
                   ) : (
                     dayInstallations.map((inst) => {
                       const status = statusLabels[inst.status] || statusLabels.pendiente;
+                      const overtimeInfo = isInstallationOvertime(inst);
+                      
                       return (
                         <div
                           key={inst.id}
                           onClick={() => handleOpenDetail(inst)}
-                          className="p-2 bg-gray-50 rounded-lg hover:bg-cyan-50 cursor-pointer transition-colors border border-transparent hover:border-cyan-200"
+                          className={`p-2 rounded-lg cursor-pointer transition-all border ${
+                            overtimeInfo.isOvertime
+                              ? 'bg-red-50 border-red-300 hover:bg-red-100 animate-pulse'
+                              : 'bg-gray-50 border-transparent hover:bg-cyan-50 hover:border-cyan-200'
+                          }`}
                         >
+                          {/* Overtime Alert Banner */}
+                          {overtimeInfo.isOvertime && (
+                            <div className="flex items-center gap-1 text-xs text-red-700 font-bold mb-1 bg-red-200 rounded px-1.5 py-0.5">
+                              <AlertTriangle className="w-3 h-3" />
+                              +{overtimeInfo.overtimeMinutes}min excedido
+                            </div>
+                          )}
+                          
                           <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-                            <Clock className="w-3 h-3" />
+                            <Clock className={`w-3 h-3 ${overtimeInfo.isOvertime ? 'text-red-500' : ''}`} />
                             {inst.scheduled_time || 'Sin hora'}
+                            {/* Show elapsed time for in-progress installations */}
+                            {inst.status === 'en_progreso' && inst.timer_started_at && !inst.timer_ended_at && (
+                              <span className={`ml-1 font-medium ${overtimeInfo.isOvertime ? 'text-red-600' : 'text-purple-600'}`}>
+                                ({overtimeInfo.elapsedMinutes}min)
+                              </span>
+                            )}
                           </div>
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className={`text-sm font-medium truncate ${overtimeInfo.isOvertime ? 'text-red-900' : 'text-gray-900'}`}>
                             Instalacion #{inst.id}
                           </p>
                           <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
@@ -758,11 +816,17 @@ export default function InstallationsPage() {
                               {inst.technician_id ? `Tecnico #${inst.technician_id}` : 'Sin asignar'}
                             </span>
                           </div>
-                          <span
-                            className={`inline-block mt-2 text-xs px-2 py-0.5 rounded ${status.color}`}
-                          >
-                            {status.label}
-                          </span>
+                          <div className="flex items-center gap-1 mt-2">
+                            <span
+                              className={`inline-block text-xs px-2 py-0.5 rounded ${
+                                overtimeInfo.isOvertime 
+                                  ? 'bg-red-600 text-white' 
+                                  : status.color
+                              }`}
+                            >
+                              {overtimeInfo.isOvertime ? '⚠️ Excedido' : status.label}
+                            </span>
+                          </div>
                         </div>
                       );
                     })
