@@ -12,9 +12,63 @@ from app.schemas import (
     TechnicianDaySchedule, InstallationResponse
 )
 from app.models import User
+from pydantic import BaseModel
 
 router = APIRouter()
 
+
+# ============== PUBLIC ENDPOINTS (for technician app) ==============
+
+class TechnicianAppItem(BaseModel):
+    """Minimal technician info for app login selector."""
+    id: int
+    full_name: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/app/list", response_model=List[TechnicianAppItem])
+def get_technicians_for_app(
+    db: Session = Depends(get_db)
+):
+    """
+    PUBLIC ENDPOINT - Get active technicians for app login selector.
+    No authentication required.
+    """
+    technicians = crud.technician.get_active(db, skip=0, limit=100)
+    return technicians
+
+
+@router.get("/app/{technician_id}/installations", response_model=List[InstallationResponse])
+def get_technician_installations_for_app(
+    technician_id: int,
+    db: Session = Depends(get_db),
+    target_date: date = Query(default=None)
+):
+    """
+    PUBLIC ENDPOINT - Get technician's installations for a specific date.
+    No authentication required (for technician app).
+    """
+    from app.core.timezone import today_colombia
+    
+    technician = crud.technician.get(db, id=technician_id)
+    if not technician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Technician not found"
+        )
+    
+    if target_date is None:
+        target_date = today_colombia()
+    
+    installations = crud.installation.get_by_date(
+        db, target_date=target_date, technician_id=technician_id
+    )
+    return installations
+
+
+# ============== AUTHENTICATED ENDPOINTS ==============
 
 @router.get("/", response_model=List[TechnicianListResponse])
 def get_technicians(
