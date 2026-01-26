@@ -96,6 +96,19 @@ interface InstallationDetail extends Installation {
   technician?: Technician;
 }
 
+// Helper function to format duration
+const formatDurationMinutes = (minutes: number): string => {
+  if (minutes === 0) {
+    return '< 1 min';
+  }
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+};
+
 export default function InstallationsPage() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -989,15 +1002,15 @@ export default function InstallationsPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Pago</h3>
                   
-                  {/* Duración de instalación (si está completada) */}
-                  {selectedInstallation.installation_duration_minutes && (
+                  {/* Duración de instalación (si está completada) - usando typeof para manejar 0 */}
+                  {typeof selectedInstallation.installation_duration_minutes === 'number' && (
                     <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
                       <span className="text-gray-500 flex items-center gap-2">
                         <Timer className="w-4 h-4 text-orange-500" />
                         Duración instalación
                       </span>
                       <span className="text-orange-600 font-bold">
-                        {selectedInstallation.installation_duration_minutes} min
+                        {formatDurationMinutes(selectedInstallation.installation_duration_minutes)}
                       </span>
                     </div>
                   )}
