@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2 } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource } from '../types';
 import Modal from '../components/common/Modal';
 import { CITIES } from '../constants/cities';
 
-const statusLabels: Record<string, { label: string; color: string }> = {
+const statusLabels: Record&lt;string, { label: string; color: string }&gt; = {
   pendiente: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-700' },
   programada: { label: 'Programada', color: 'bg-blue-100 text-blue-700' },
   en_camino: { label: 'En camino', color: 'bg-indigo-100 text-indigo-700' },
@@ -14,7 +14,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-700' },
 };
 
-const paymentLabels: Record<string, { label: string; color: string }> = {
+const paymentLabels: Record&lt;string, { label: string; color: string }&gt; = {
   pendiente: { label: 'Sin pagar', color: 'bg-red-100 text-red-700' },
   parcial: { label: 'Parcial', color: 'bg-yellow-100 text-yellow-700' },
   pagado: { label: 'Pagado', color: 'bg-green-100 text-green-700' },
@@ -27,6 +27,14 @@ const INSTALLATION_PRICES = [
 ];
 
 type DiscountType = 'none' | 'percentage' | 'value';
+
+// Selected product item for multi-product support
+interface SelectedProduct {
+  product_id: number;
+  product_name: string;
+  product_price: number;
+  quantity: number;
+}
 
 interface InstallationFormData {
   lead_id: string;
@@ -85,38 +93,65 @@ interface InstallationDetail extends Installation {
 }
 
 export default function InstallationsPage() {
-  const [installations, setInstallations] = useState<Installation[]>([]);
+  const [installations, setInstallations] = useState&lt;Installation[]&gt;([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState<InstallationFormData>(initialFormData);
+  const [formData, setFormData] = useState&lt;InstallationFormData&gt;(initialFormData);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState&lt;string | null&gt;(null);
   
   // Edit mode state
-  const [editingInstallation, setEditingInstallation] = useState<Installation | null>(null);
+  const [editingInstallation, setEditingInstallation] = useState&lt;Installation | null&gt;(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Quick lead modal state
   const [isQuickLeadModalOpen, setIsQuickLeadModalOpen] = useState(false);
-  const [quickLeadData, setQuickLeadData] = useState<QuickLeadFormData>(initialQuickLeadData);
+  const [quickLeadData, setQuickLeadData] = useState&lt;QuickLeadFormData&gt;(initialQuickLeadData);
   const [savingLead, setSavingLead] = useState(false);
-  const [leadError, setLeadError] = useState<string | null>(null);
+  const [leadError, setLeadError] = useState&lt;string | null&gt;(null);
 
   // Detail modal state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedInstallation, setSelectedInstallation] = useState<InstallationDetail | null>(null);
+  const [selectedInstallation, setSelectedInstallation] = useState&lt;InstallationDetail | null&gt;(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Options for selects
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [leads, setLeads] = useState&lt;Lead[]&gt;([]);
+  const [products, setProducts] = useState&lt;Product[]&gt;([]);
+  const [technicians, setTechnicians] = useState&lt;Technician[]&gt;([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
-  const fetchInstallations = async () => {
+  // Product search and multi-select state
+  const [productSearch, setProductSearch] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState&lt;SelectedProduct[]&gt;([]);
+  const [tempQuantity, setTempQuantity] = useState('1');
+  const productSearchRef = useRef&lt;HTMLDivElement&gt;(null);
+
+  // Filter products based on search
+  const filteredProducts = products.filter(product =&gt; {
+    const searchLower = productSearch.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(searchLower) ||
+      (product.model &amp;&amp; product.model.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // Close dropdown when clicking outside
+  useEffect(() =&gt; {
+    const handleClickOutside = (event: MouseEvent) =&gt; {
+      if (productSearchRef.current &amp;&amp; !productSearchRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () =&gt; document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchInstallations = async () =&gt; {
     try {
       const data = await installationsApi.getAll();
       setInstallations(data);
@@ -127,11 +162,11 @@ export default function InstallationsPage() {
     }
   };
 
-  useEffect(() => {
+  useEffect(() =&gt; {
     fetchInstallations();
   }, []);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date) =&gt; {
     return date.toLocaleDateString('es-CO', {
       weekday: 'long',
       day: 'numeric',
@@ -140,18 +175,18 @@ export default function InstallationsPage() {
     });
   };
 
-  const navigateWeek = (direction: number) => {
+  const navigateWeek = (direction: number) =&gt; {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + direction * 7);
     setCurrentDate(newDate);
   };
 
-  const getWeekDays = () => {
+  const getWeekDays = () =&gt; {
     const days = [];
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay() + 1);
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i &lt; 7; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
       days.push(day);
@@ -159,13 +194,13 @@ export default function InstallationsPage() {
     return days;
   };
 
-  const getInstallationsForDay = (day: Date) => {
-    return installations.filter((inst) => {
+  const getInstallationsForDay = (day: Date) =&gt; {
+    return installations.filter((inst) =&gt; {
       if (!inst.scheduled_date) return false;
       const instDate = new Date(inst.scheduled_date);
       return (
-        instDate.getDate() === day.getDate() &&
-        instDate.getMonth() === day.getMonth() &&
+        instDate.getDate() === day.getDate() &amp;&amp;
+        instDate.getMonth() === day.getMonth() &amp;&amp;
         instDate.getFullYear() === day.getFullYear()
       );
     });
@@ -174,43 +209,107 @@ export default function InstallationsPage() {
   const weekDays = getWeekDays();
   const today = new Date();
 
-  // Calculate total price with discount
+  // Calculate total price with discount (updated for multiple products)
   const calculateTotalPrice = (
-    productId: string,
-    quantity: string,
+    selectedProductsList: SelectedProduct[],
     installationPrice: string,
     discountType: DiscountType,
-    discountValue: string,
-    productsList: Product[]
-  ): { subtotal: number; discount: number; total: number } => {
-    if (!productId || !quantity || !installationPrice) {
-      return { subtotal: 0, discount: 0, total: 0 };
+    discountValue: string
+  ): { subtotal: number; discount: number; total: number; productsTotal: number } =&gt; {
+    if (selectedProductsList.length === 0 || !installationPrice) {
+      return { subtotal: 0, discount: 0, total: 0, productsTotal: 0 };
     }
     
-    const selectedProduct = productsList.find((p) => p.id === parseInt(productId));
-    if (!selectedProduct) {
-      return { subtotal: 0, discount: 0, total: 0 };
-    }
+    const productsTotal = selectedProductsList.reduce((sum, item) =&gt; {
+      return sum + (item.product_price * item.quantity);
+    }, 0);
     
-    const productTotal = selectedProduct.price * parseInt(quantity);
     const installTotal = parseInt(installationPrice);
-    const subtotal = productTotal + installTotal;
+    const subtotal = productsTotal + installTotal;
     
     let discount = 0;
-    if (discountType === 'percentage' && discountValue) {
+    if (discountType === 'percentage' &amp;&amp; discountValue) {
       const percentage = parseFloat(discountValue) || 0;
       discount = Math.round(subtotal * (percentage / 100));
-    } else if (discountType === 'value' && discountValue) {
+    } else if (discountType === 'value' &amp;&amp; discountValue) {
       discount = parseInt(discountValue) || 0;
     }
     
     const total = Math.max(0, subtotal - discount);
     
-    return { subtotal, discount, total };
+    return { subtotal, discount, total, productsTotal };
+  };
+
+  // Add product to selected list
+  const handleAddProduct = (product: Product) =&gt; {
+    const quantity = parseInt(tempQuantity) || 1;
+    
+    // Check if product already exists
+    const existingIndex = selectedProducts.findIndex(p =&gt; p.product_id === product.id);
+    
+    if (existingIndex &gt;= 0) {
+      // Update quantity if exists
+      const updated = [...selectedProducts];
+      updated[existingIndex].quantity += quantity;
+      setSelectedProducts(updated);
+    } else {
+      // Add new product
+      setSelectedProducts([...selectedProducts, {
+        product_id: product.id,
+        product_name: product.name,
+        product_price: product.price,
+        quantity: quantity
+      }]);
+    }
+    
+    // Reset search and quantity
+    setProductSearch('');
+    setTempQuantity('1');
+    setIsProductDropdownOpen(false);
+    
+    // Update form data with first product (for backend compatibility)
+    if (selectedProducts.length === 0) {
+      setFormData(prev =&gt; ({
+        ...prev,
+        product_id: product.id.toString(),
+        quantity: quantity.toString()
+      }));
+    }
+  };
+
+  // Remove product from selected list
+  const handleRemoveProduct = (productId: number) =&gt; {
+    const updated = selectedProducts.filter(p =&gt; p.product_id !== productId);
+    setSelectedProducts(updated);
+    
+    // Update form data
+    if (updated.length &gt; 0) {
+      setFormData(prev =&gt; ({
+        ...prev,
+        product_id: updated[0].product_id.toString(),
+        quantity: updated[0].quantity.toString()
+      }));
+    } else {
+      setFormData(prev =&gt; ({
+        ...prev,
+        product_id: '',
+        quantity: '1'
+      }));
+    }
+  };
+
+  // Update product quantity in list
+  const handleUpdateProductQuantity = (productId: number, newQuantity: number) =&gt; {
+    if (newQuantity &lt; 1) return;
+    
+    const updated = selectedProducts.map(p =&gt; 
+      p.product_id === productId ? { ...p, quantity: newQuantity } : p
+    );
+    setSelectedProducts(updated);
   };
 
   // Detail modal handlers
-  const handleOpenDetail = async (installation: Installation) => {
+  const handleOpenDetail = async (installation: Installation) =&gt; {
     setSelectedInstallation(installation as InstallationDetail);
     setIsDetailModalOpen(true);
     setLoadingDetail(true);
@@ -223,9 +322,9 @@ export default function InstallationsPage() {
         techniciansApi.getAll(),
       ]);
 
-      const lead = leadsData.find((l: Lead) => l.id === installation.lead_id);
-      const product = productsData.find((p: Product) => p.id === installation.product_id);
-      const technician = techniciansData.find((t: Technician) => t.id === installation.technician_id);
+      const lead = leadsData.find((l: Lead) =&gt; l.id === installation.lead_id);
+      const product = productsData.find((p: Product) =&gt; p.id === installation.product_id);
+      const technician = techniciansData.find((t: Technician) =&gt; t.id === installation.technician_id);
 
       setSelectedInstallation({
         ...installation,
@@ -240,29 +339,32 @@ export default function InstallationsPage() {
     }
   };
 
-  const handleCloseDetail = () => {
+  const handleCloseDetail = () =&gt; {
     setIsDetailModalOpen(false);
     setSelectedInstallation(null);
   };
 
-  const openMaps = (address: string, city?: string) => {
+  const openMaps = (address: string, city?: string) =&gt; {
     const fullAddress = city ? `${address}, ${city}` : address;
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+    const url = `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(fullAddress)}`;
     window.open(url, '_blank');
   };
 
-  const callPhone = (phone: string) => {
+  const callPhone = (phone: string) =&gt; {
     window.open(`tel:${phone}`, '_self');
   };
 
-  const openWhatsApp = (phone: string) => {
+  const openWhatsApp = (phone: string) =&gt; {
     const cleanPhone = phone.replace(/\D/g, '');
     window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
   // Modal handlers for CREATE
-  const handleOpenModal = async () => {
+  const handleOpenModal = async () =&gt; {
     setFormData(initialFormData);
+    setSelectedProducts([]);
+    setProductSearch('');
+    setTempQuantity('1');
     setError(null);
     setIsEditMode(false);
     setEditingInstallation(null);
@@ -287,7 +389,7 @@ export default function InstallationsPage() {
   };
 
   // Modal handlers for EDIT
-  const handleOpenEditModal = async (installation: InstallationDetail) => {
+  const handleOpenEditModal = async (installation: InstallationDetail) =&gt; {
     setError(null);
     setIsEditMode(true);
     setEditingInstallation(installation);
@@ -305,16 +407,19 @@ export default function InstallationsPage() {
       setProducts(productsData);
       setTechnicians(techniciansData);
 
+      // Set selected products from existing installation
+      const existingProduct = productsData.find((p: Product) =&gt; p.id === installation.product_id);
+      if (existingProduct) {
+        setSelectedProducts([{
+          product_id: existingProduct.id,
+          product_name: existingProduct.name,
+          product_price: existingProduct.price,
+          quantity: installation.quantity || 1
+        }]);
+      }
+
       // Calculate initial price based on existing data
       const defaultInstallPrice = '189000';
-      const priceData = calculateTotalPrice(
-        installation.product_id?.toString() || '',
-        installation.quantity?.toString() || '1',
-        defaultInstallPrice,
-        'none',
-        '',
-        productsData
-      );
 
       // Pre-fill form with existing data
       setFormData({
@@ -330,7 +435,7 @@ export default function InstallationsPage() {
         installation_price: defaultInstallPrice,
         discount_type: 'none',
         discount_value: '',
-        total_price: priceData.total > 0 ? priceData.total.toString() : (installation.total_price?.toString() || ''),
+        total_price: installation.total_price?.toString() || '',
         customer_notes: installation.customer_notes || '',
       });
     } catch (err) {
@@ -341,24 +446,26 @@ export default function InstallationsPage() {
     }
   };
 
-  const handleCloseModal = () => {
+  const handleCloseModal = () =&gt; {
     setIsModalOpen(false);
     setFormData(initialFormData);
+    setSelectedProducts([]);
+    setProductSearch('');
     setError(null);
     setIsEditMode(false);
     setEditingInstallation(null);
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+    e: React.ChangeEvent&lt;HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement&gt;
+  ) =&gt; {
     const { name, value } = e.target;
     
     // Auto-fill address when lead is selected
-    if (name === 'lead_id' && value) {
-      const selectedLead = leads.find((l) => l.id === parseInt(value));
+    if (name === 'lead_id' &amp;&amp; value) {
+      const selectedLead = leads.find((l) =&gt; l.id === parseInt(value));
       if (selectedLead?.address) {
-        setFormData((prev) => ({
+        setFormData((prev) =&gt; ({
           ...prev,
           lead_id: value,
           address: selectedLead.address || '',
@@ -370,73 +477,50 @@ export default function InstallationsPage() {
 
     // Reset discount value when changing type
     if (name === 'discount_type') {
-      const newDiscountType = value as DiscountType;
-      const priceData = calculateTotalPrice(
-        formData.product_id, 
-        formData.quantity, 
-        formData.installation_price,
-        newDiscountType,
-        '', // Reset discount value
-        products
-      );
-
-      setFormData((prev) => ({
+      setFormData((prev) =&gt; ({
         ...prev,
-        discount_type: newDiscountType,
+        discount_type: value as DiscountType,
         discount_value: '',
-        total_price: priceData.total.toString(),
       }));
       return;
     }
 
-    // Auto-calculate price when product, quantity, installation price, or discount changes
-    if (name === 'product_id' || name === 'quantity' || name === 'installation_price' || name === 'discount_value') {
-      const newProductId = name === 'product_id' ? value : formData.product_id;
-      const newQuantity = name === 'quantity' ? value : formData.quantity;
-      const newInstallPrice = name === 'installation_price' ? value : formData.installation_price;
-      const newDiscountValue = name === 'discount_value' ? value : formData.discount_value;
-
-      const priceData = calculateTotalPrice(
-        newProductId, 
-        newQuantity, 
-        newInstallPrice, 
-        formData.discount_type,
-        newDiscountValue,
-        products
-      );
-
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-        total_price: priceData.total.toString(),
-      }));
-      return;
-    }
-
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) =&gt; ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) =&gt; {
     e.preventDefault();
     setError(null);
     setSaving(true);
 
     try {
+      // Calculate total price
+      const priceData = calculateTotalPrice(
+        selectedProducts,
+        formData.installation_price,
+        formData.discount_type,
+        formData.discount_value
+      );
+
+      // Use first product for main record (backend compatibility)
+      const mainProduct = selectedProducts[0];
+      const totalQuantity = selectedProducts.reduce((sum, p) =&gt; sum + p.quantity, 0);
+
       const installationData = {
         lead_id: parseInt(formData.lead_id),
-        product_id: parseInt(formData.product_id),
+        product_id: mainProduct?.product_id || parseInt(formData.product_id),
         technician_id: formData.technician_id ? parseInt(formData.technician_id) : undefined,
-        quantity: parseInt(formData.quantity) || 1,
+        quantity: totalQuantity || 1,
         scheduled_date: formData.scheduled_date || undefined,
         scheduled_time: formData.scheduled_time || undefined,
         address: formData.address,
         city: formData.city || undefined,
         address_notes: formData.address_notes || undefined,
-        total_price: parseFloat(formData.total_price) || 0,
+        total_price: priceData.total || 0,
         customer_notes: formData.customer_notes || undefined,
       };
 
-      if (isEditMode && editingInstallation) {
+      if (isEditMode &amp;&amp; editingInstallation) {
         // UPDATE existing installation
         await installationsApi.update(editingInstallation.id, installationData);
         
@@ -461,26 +545,26 @@ export default function InstallationsPage() {
   };
 
   // Quick Lead handlers
-  const handleOpenQuickLead = () => {
+  const handleOpenQuickLead = () =&gt; {
     setQuickLeadData(initialQuickLeadData);
     setLeadError(null);
     setIsQuickLeadModalOpen(true);
   };
 
-  const handleCloseQuickLead = () => {
+  const handleCloseQuickLead = () =&gt; {
     setIsQuickLeadModalOpen(false);
     setQuickLeadData(initialQuickLeadData);
     setLeadError(null);
   };
 
   const handleQuickLeadChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+    e: React.ChangeEvent&lt;HTMLInputElement | HTMLSelectElement&gt;
+  ) =&gt; {
     const { name, value } = e.target;
-    setQuickLeadData((prev) => ({ ...prev, [name]: value }));
+    setQuickLeadData((prev) =&gt; ({ ...prev, [name]: value }));
   };
 
-  const handleQuickLeadSubmit = async (e: React.FormEvent) => {
+  const handleQuickLeadSubmit = async (e: React.FormEvent) =&gt; {
     e.preventDefault();
     setLeadError(null);
     setSavingLead(true);
@@ -501,8 +585,8 @@ export default function InstallationsPage() {
       const newLead = await leadsApi.create(leadData);
       
       // Add to leads list and select it
-      setLeads((prev) => [...prev, newLead]);
-      setFormData((prev) => ({
+      setLeads((prev) =&gt; [...prev, newLead]);
+      setFormData((prev) =&gt; ({
         ...prev,
         lead_id: newLead.id.toString(),
         address: newLead.address || prev.address,
@@ -518,218 +602,211 @@ export default function InstallationsPage() {
     }
   };
 
-  // Get selected product for price display
-  const selectedProduct = formData.product_id 
-    ? products.find((p) => p.id === parseInt(formData.product_id)) 
-    : null;
-
   // Calculate price breakdown for display
-  const priceBreakdown = selectedProduct 
+  const priceBreakdown = selectedProducts.length &gt; 0 
     ? calculateTotalPrice(
-        formData.product_id,
-        formData.quantity,
+        selectedProducts,
         formData.installation_price,
         formData.discount_type,
-        formData.discount_value,
-        products
+        formData.discount_value
       )
     : null;
 
   return (
-    <div className="p-6">
+    &lt;div className="p-6"&gt;
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Instalaciones</h1>
-          <p className="text-gray-500">Agenda de instalaciones programadas</p>
-        </div>
-        <button
+      &lt;div className="flex items-center justify-between mb-6"&gt;
+        &lt;div&gt;
+          &lt;h1 className="text-2xl font-bold text-gray-900"&gt;Instalaciones&lt;/h1&gt;
+          &lt;p className="text-gray-500"&gt;Agenda de instalaciones programadas&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
           onClick={handleOpenModal}
           className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
+        &gt;
+          &lt;Plus className="w-4 h-4" /&gt;
           Nueva Instalacion
-        </button>
-      </div>
+        &lt;/button&gt;
+      &lt;/div&gt;
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-6 bg-white rounded-lg p-4 border border-gray-100">
-        <button
-          onClick={() => navigateWeek(-1)}
+      &lt;div className="flex items-center justify-between mb-6 bg-white rounded-lg p-4 border border-gray-100"&gt;
+        &lt;button
+          onClick={() =&gt; navigateWeek(-1)}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <span className="text-lg font-semibold text-gray-900 capitalize">
+        &gt;
+          &lt;ChevronLeft className="w-5 h-5 text-gray-600" /&gt;
+        &lt;/button&gt;
+        &lt;span className="text-lg font-semibold text-gray-900 capitalize"&gt;
           {formatDate(currentDate)}
-        </span>
-        <button
-          onClick={() => navigateWeek(1)}
+        &lt;/span&gt;
+        &lt;button
+          onClick={() =&gt; navigateWeek(1)}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ChevronRight className="w-5 h-5 text-gray-600" />
-        </button>
-      </div>
+        &gt;
+          &lt;ChevronRight className="w-5 h-5 text-gray-600" /&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
 
       {/* Calendar Grid */}
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
-        </div>
+        &lt;div className="flex items-center justify-center h-64"&gt;
+          &lt;div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" /&gt;
+        &lt;/div&gt;
       ) : (
-        <div className="grid grid-cols-7 gap-4">
-          {weekDays.map((day) => {
+        &lt;div className="grid grid-cols-7 gap-4"&gt;
+          {weekDays.map((day) =&gt; {
             const isToday =
-              day.getDate() === today.getDate() &&
-              day.getMonth() === today.getMonth() &&
+              day.getDate() === today.getDate() &amp;&amp;
+              day.getMonth() === today.getMonth() &amp;&amp;
               day.getFullYear() === today.getFullYear();
             const dayInstallations = getInstallationsForDay(day);
 
             return (
-              <div
+              &lt;div
                 key={day.toISOString()}
                 className={`bg-white rounded-lg border ${
                   isToday ? 'border-cyan-500 ring-2 ring-cyan-100' : 'border-gray-100'
                 } min-h-[300px]`}
-              >
+              &gt;
                 {/* Day Header */}
-                <div
+                &lt;div
                   className={`p-3 border-b ${isToday ? 'bg-cyan-50' : 'bg-gray-50'}`}
-                >
-                  <p className="text-xs text-gray-500 uppercase">
+                &gt;
+                  &lt;p className="text-xs text-gray-500 uppercase"&gt;
                     {day.toLocaleDateString('es-CO', { weekday: 'short' })}
-                  </p>
-                  <p
+                  &lt;/p&gt;
+                  &lt;p
                     className={`text-lg font-bold ${
                       isToday ? 'text-cyan-600' : 'text-gray-900'
                     }`}
-                  >
+                  &gt;
                     {day.getDate()}
-                  </p>
-                </div>
+                  &lt;/p&gt;
+                &lt;/div&gt;
 
                 {/* Installations */}
-                <div className="p-2 space-y-2">
+                &lt;div className="p-2 space-y-2"&gt;
                   {dayInstallations.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">
+                    &lt;p className="text-xs text-gray-400 text-center py-4"&gt;
                       Sin instalaciones
-                    </p>
+                    &lt;/p&gt;
                   ) : (
-                    dayInstallations.map((inst) => {
+                    dayInstallations.map((inst) =&gt; {
                       const status = statusLabels[inst.status] || statusLabels.pendiente;
                       return (
-                        <div
+                        &lt;div
                           key={inst.id}
-                          onClick={() => handleOpenDetail(inst)}
+                          onClick={() =&gt; handleOpenDetail(inst)}
                           className="p-2 bg-gray-50 rounded-lg hover:bg-cyan-50 cursor-pointer transition-colors border border-transparent hover:border-cyan-200"
-                        >
-                          <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-                            <Clock className="w-3 h-3" />
+                        &gt;
+                          &lt;div className="flex items-center gap-1 text-xs text-gray-500 mb-1"&gt;
+                            &lt;Clock className="w-3 h-3" /&gt;
                             {inst.scheduled_time || 'Sin hora'}
-                          </div>
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          &lt;/div&gt;
+                          &lt;p className="text-sm font-medium text-gray-900 truncate"&gt;
                             Instalacion #{inst.id}
-                          </p>
-                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                            <User className="w-3 h-3" />
-                            <span className="truncate">
+                          &lt;/p&gt;
+                          &lt;div className="flex items-center gap-1 text-xs text-gray-500 mt-1"&gt;
+                            &lt;User className="w-3 h-3" /&gt;
+                            &lt;span className="truncate"&gt;
                               {inst.technician_id ? `Tecnico #${inst.technician_id}` : 'Sin asignar'}
-                            </span>
-                          </div>
-                          <span
+                            &lt;/span&gt;
+                          &lt;/div&gt;
+                          &lt;span
                             className={`inline-block mt-2 text-xs px-2 py-0.5 rounded ${status.color}`}
-                          >
+                          &gt;
                             {status.label}
-                          </span>
-                        </div>
+                          &lt;/span&gt;
+                        &lt;/div&gt;
                       );
                     })
                   )}
-                </div>
-              </div>
+                &lt;/div&gt;
+              &lt;/div&gt;
             );
           })}
-        </div>
+        &lt;/div&gt;
       )}
 
       {/* Installation Detail Modal */}
-      {isDetailModalOpen && selectedInstallation && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      {isDetailModalOpen &amp;&amp; selectedInstallation &amp;&amp; (
+        &lt;div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"&gt;
+          &lt;div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"&gt;
             {/* Header */}
-            <div className="sticky top-0 bg-cyan-500 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Instalación #{selectedInstallation.id}</h2>
-                <span className={`text-xs px-2 py-0.5 rounded ${statusLabels[selectedInstallation.status]?.color || 'bg-gray-100'}`}>
+            &lt;div className="sticky top-0 bg-cyan-500 text-white px-6 py-4 rounded-t-xl flex items-center justify-between"&gt;
+              &lt;div&gt;
+                &lt;h2 className="text-xl font-bold"&gt;Instalación #{selectedInstallation.id}&lt;/h2&gt;
+                &lt;span className={`text-xs px-2 py-0.5 rounded ${statusLabels[selectedInstallation.status]?.color || 'bg-gray-100'}`}&gt;
                   {statusLabels[selectedInstallation.status]?.label || selectedInstallation.status}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
+                &lt;/span&gt;
+              &lt;/div&gt;
+              &lt;div className="flex items-center gap-2"&gt;
                 {/* Edit Button */}
-                <button
-                  onClick={() => handleOpenEditModal(selectedInstallation)}
+                &lt;button
+                  onClick={() =&gt; handleOpenEditModal(selectedInstallation)}
                   className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
                   title="Editar instalación"
-                >
-                  <Edit3 className="w-5 h-5" />
-                </button>
-                <button
+                &gt;
+                  &lt;Edit3 className="w-5 h-5" /&gt;
+                &lt;/button&gt;
+                &lt;button
                   onClick={handleCloseDetail}
                   className="p-2 hover:bg-cyan-600 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+                &gt;
+                  &lt;X className="w-5 h-5" /&gt;
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
 
             {loadingDetail ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
-              </div>
+              &lt;div className="flex items-center justify-center py-12"&gt;
+                &lt;div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" /&gt;
+              &lt;/div&gt;
             ) : (
-              <div className="p-6 space-y-4">
+              &lt;div className="p-6 space-y-4"&gt;
                 {/* Cliente */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Cliente</h3>
-                  <p className="text-lg font-semibold text-gray-900">
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Cliente&lt;/h3&gt;
+                  &lt;p className="text-lg font-semibold text-gray-900"&gt;
                     {selectedInstallation.lead?.name || 'Sin nombre'}
-                  </p>
-                  {selectedInstallation.lead?.phone && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
-                      <a href={`tel:${selectedInstallation.lead.phone}`} className="text-cyan-600">
+                  &lt;/p&gt;
+                  {selectedInstallation.lead?.phone &amp;&amp; (
+                    &lt;div className="flex items-center gap-2 mt-2"&gt;
+                      &lt;Phone className="w-4 h-4 text-gray-400" /&gt;
+                      &lt;a href={`tel:${selectedInstallation.lead.phone}`} className="text-cyan-600"&gt;
                         {selectedInstallation.lead.phone}
-                      </a>
-                    </div>
+                      &lt;/a&gt;
+                    &lt;/div&gt;
                   )}
                   
                   {/* Contact buttons */}
-                  {selectedInstallation.lead?.phone && (
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => callPhone(selectedInstallation.lead!.phone)}
+                  {selectedInstallation.lead?.phone &amp;&amp; (
+                    &lt;div className="flex gap-2 mt-3"&gt;
+                      &lt;button
+                        onClick={() =&gt; callPhone(selectedInstallation.lead!.phone)}
                         className="flex-1 flex items-center justify-center gap-2 py-2 bg-cyan-500 text-white rounded-lg text-sm font-medium"
-                      >
-                        <Phone className="w-4 h-4" />
+                      &gt;
+                        &lt;Phone className="w-4 h-4" /&gt;
                         Llamar
-                      </button>
-                      <button
-                        onClick={() => openWhatsApp(selectedInstallation.lead!.phone)}
+                      &lt;/button&gt;
+                      &lt;button
+                        onClick={() =&gt; openWhatsApp(selectedInstallation.lead!.phone)}
                         className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-500 text-white rounded-lg text-sm font-medium"
-                      >
-                        <MessageSquare className="w-4 h-4" />
+                      &gt;
+                        &lt;MessageSquare className="w-4 h-4" /&gt;
                         WhatsApp
-                      </button>
-                    </div>
+                      &lt;/button&gt;
+                    &lt;/div&gt;
                   )}
-                </div>
+                &lt;/div&gt;
 
                 {/* Fecha y Hora */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Programación</h3>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-900">
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Programación&lt;/h3&gt;
+                  &lt;div className="flex items-center gap-2"&gt;
+                    &lt;Calendar className="w-5 h-5 text-gray-400" /&gt;
+                    &lt;span className="text-gray-900"&gt;
                       {selectedInstallation.scheduled_date 
                         ? new Date(selectedInstallation.scheduled_date).toLocaleDateString('es-CO', {
                             weekday: 'long',
@@ -738,157 +815,157 @@ export default function InstallationsPage() {
                             year: 'numeric'
                           })
                         : 'Sin fecha'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-900">
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                  &lt;div className="flex items-center gap-2 mt-2"&gt;
+                    &lt;Clock className="w-5 h-5 text-gray-400" /&gt;
+                    &lt;span className="text-gray-900"&gt;
                       {selectedInstallation.scheduled_time || 'Sin hora'}
-                    </span>
-                  </div>
-                </div>
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
 
                 {/* Dirección */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Dirección</h3>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-gray-900">{selectedInstallation.address}</p>
-                      {selectedInstallation.city && (
-                        <p className="text-gray-500 text-sm">{selectedInstallation.city}</p>
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Dirección&lt;/h3&gt;
+                  &lt;div className="flex items-start gap-2"&gt;
+                    &lt;MapPin className="w-5 h-5 text-gray-400 mt-0.5" /&gt;
+                    &lt;div&gt;
+                      &lt;p className="text-gray-900"&gt;{selectedInstallation.address}&lt;/p&gt;
+                      {selectedInstallation.city &amp;&amp; (
+                        &lt;p className="text-gray-500 text-sm"&gt;{selectedInstallation.city}&lt;/p&gt;
                       )}
-                      {selectedInstallation.address_notes && (
-                        <p className="text-cyan-600 text-sm mt-1">{selectedInstallation.address_notes}</p>
+                      {selectedInstallation.address_notes &amp;&amp; (
+                        &lt;p className="text-cyan-600 text-sm mt-1"&gt;{selectedInstallation.address_notes}&lt;/p&gt;
                       )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => openMaps(selectedInstallation.address, selectedInstallation.city || undefined)}
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+                  &lt;button
+                    onClick={() =&gt; openMaps(selectedInstallation.address, selectedInstallation.city || undefined)}
                     className="w-full mt-3 flex items-center justify-center gap-2 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium"
-                  >
-                    <MapPin className="w-4 h-4" />
+                  &gt;
+                    &lt;MapPin className="w-4 h-4" /&gt;
                     Ver en Google Maps
-                  </button>
-                </div>
+                  &lt;/button&gt;
+                &lt;/div&gt;
 
                 {/* Producto */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Producto</h3>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-6 h-6 text-cyan-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Producto&lt;/h3&gt;
+                  &lt;div className="flex items-center gap-3"&gt;
+                    &lt;div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center"&gt;
+                      &lt;Package className="w-6 h-6 text-cyan-600" /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;p className="font-semibold text-gray-900"&gt;
                         {selectedInstallation.product?.name || `Producto #${selectedInstallation.product_id}`}
-                      </p>
-                      <p className="text-sm text-gray-500">
+                      &lt;/p&gt;
+                      &lt;p className="text-sm text-gray-500"&gt;
                         {selectedInstallation.product?.model || ''}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                      &lt;/p&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
 
                 {/* Técnico */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Técnico Asignado</h3>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <User className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Técnico Asignado&lt;/h3&gt;
+                  &lt;div className="flex items-center gap-3"&gt;
+                    &lt;div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center"&gt;
+                      &lt;User className="w-6 h-6 text-indigo-600" /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;p className="font-semibold text-gray-900"&gt;
                         {selectedInstallation.technician?.full_name || 'Sin asignar'}
-                      </p>
-                      {selectedInstallation.technician?.phone && (
-                        <p className="text-sm text-gray-500">
+                      &lt;/p&gt;
+                      {selectedInstallation.technician?.phone &amp;&amp; (
+                        &lt;p className="text-sm text-gray-500"&gt;
                           {selectedInstallation.technician.phone}
-                        </p>
+                        &lt;/p&gt;
                       )}
-                    </div>
-                  </div>
-                </div>
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
 
                 {/* Pago */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Pago</h3>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-500">Total</span>
-                    <span className="text-xl font-bold text-gray-900">
+                &lt;div className="bg-gray-50 rounded-lg p-4"&gt;
+                  &lt;h3 className="text-sm font-semibold text-gray-500 uppercase mb-2"&gt;Pago&lt;/h3&gt;
+                  &lt;div className="flex items-center justify-between mb-2"&gt;
+                    &lt;span className="text-gray-500"&gt;Total&lt;/span&gt;
+                    &lt;span className="text-xl font-bold text-gray-900"&gt;
                       ${selectedInstallation.total_price?.toLocaleString() || '0'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-500">Pagado</span>
-                    <span className="text-green-600 font-medium">
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                  &lt;div className="flex items-center justify-between mb-2"&gt;
+                    &lt;span className="text-gray-500"&gt;Pagado&lt;/span&gt;
+                    &lt;span className="text-green-600 font-medium"&gt;
                       ${selectedInstallation.amount_paid?.toLocaleString() || '0'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-gray-700 font-medium">Por cobrar</span>
-                    <span className="text-cyan-600 font-bold">
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                  &lt;div className="flex items-center justify-between pt-2 border-t"&gt;
+                    &lt;span className="text-gray-700 font-medium"&gt;Por cobrar&lt;/span&gt;
+                    &lt;span className="text-cyan-600 font-bold"&gt;
                       ${((selectedInstallation.total_price || 0) - (selectedInstallation.amount_paid || 0)).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    <span className={`text-xs px-2 py-1 rounded ${paymentLabels[selectedInstallation.payment_status]?.color || 'bg-gray-100'}`}>
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                  &lt;div className="mt-2"&gt;
+                    &lt;span className={`text-xs px-2 py-1 rounded ${paymentLabels[selectedInstallation.payment_status]?.color || 'bg-gray-100'}`}&gt;
                       {paymentLabels[selectedInstallation.payment_status]?.label || selectedInstallation.payment_status}
-                    </span>
-                  </div>
-                </div>
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
 
                 {/* Notas */}
-                {selectedInstallation.customer_notes && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-yellow-800 mb-1">Notas del cliente</h3>
-                    <p className="text-yellow-700">{selectedInstallation.customer_notes}</p>
-                  </div>
+                {selectedInstallation.customer_notes &amp;&amp; (
+                  &lt;div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"&gt;
+                    &lt;h3 className="text-sm font-semibold text-yellow-800 mb-1"&gt;Notas del cliente&lt;/h3&gt;
+                    &lt;p className="text-yellow-700"&gt;{selectedInstallation.customer_notes}&lt;/p&gt;
+                  &lt;/div&gt;
                 )}
 
                 {/* Edit Button at bottom */}
-                <button
-                  onClick={() => handleOpenEditModal(selectedInstallation)}
+                &lt;button
+                  onClick={() =&gt; handleOpenEditModal(selectedInstallation)}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors"
-                >
-                  <Edit3 className="w-5 h-5" />
+                &gt;
+                  &lt;Edit3 className="w-5 h-5" /&gt;
                   Editar Instalación
-                </button>
-              </div>
+                &lt;/button&gt;
+              &lt;/div&gt;
             )}
-          </div>
-        </div>
+          &lt;/div&gt;
+        &lt;/div&gt;
       )}
 
       {/* Quick Lead Modal */}
-      {isQuickLeadModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Agregar Cliente Rápido</h3>
-                <p className="text-sm text-gray-500">Solo datos básicos</p>
-              </div>
-              <button
+      {isQuickLeadModalOpen &amp;&amp; (
+        &lt;div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"&gt;
+          &lt;div className="bg-white rounded-xl w-full max-w-md"&gt;
+            &lt;div className="px-6 py-4 border-b flex items-center justify-between"&gt;
+              &lt;div&gt;
+                &lt;h3 className="text-lg font-semibold text-gray-900"&gt;Agregar Cliente Rápido&lt;/h3&gt;
+                &lt;p className="text-sm text-gray-500"&gt;Solo datos básicos&lt;/p&gt;
+              &lt;/div&gt;
+              &lt;button
                 onClick={handleCloseQuickLead}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
+              &gt;
+                &lt;X className="w-5 h-5 text-gray-500" /&gt;
+              &lt;/button&gt;
+            &lt;/div&gt;
 
-            <form onSubmit={handleQuickLeadSubmit} className="p-6 space-y-4">
-              {leadError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            &lt;form onSubmit={handleQuickLeadSubmit} className="p-6 space-y-4"&gt;
+              {leadError &amp;&amp; (
+                &lt;div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"&gt;
                   {leadError}
-                </div>
+                &lt;/div&gt;
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Nombre *
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="text"
                   name="name"
                   value={quickLeadData.name}
@@ -897,14 +974,14 @@ export default function InstallationsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
                   autoFocus
-                />
-              </div>
+                /&gt;
+              &lt;/div&gt;
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Teléfono *
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="tel"
                   name="phone"
                   value={quickLeadData.phone}
@@ -912,230 +989,299 @@ export default function InstallationsPage() {
                   placeholder="3001234567"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
-                />
-              </div>
+                /&gt;
+              &lt;/div&gt;
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Ciudad
-                </label>
-                <select
+                &lt;/label&gt;
+                &lt;select
                   name="city"
                   value={quickLeadData.city}
                   onChange={handleQuickLeadChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                >
-                  <option value="">Seleccionar...</option>
-                  {CITIES.map((city) => (
-                    <option key={city.value} value={city.label}>
+                &gt;
+                  &lt;option value=""&gt;Seleccionar...&lt;/option&gt;
+                  {CITIES.map((city) =&gt; (
+                    &lt;option key={city.value} value={city.label}&gt;
                       {city.label}
-                    </option>
+                    &lt;/option&gt;
                   ))}
-                </select>
-              </div>
+                &lt;/select&gt;
+              &lt;/div&gt;
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Dirección
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="text"
                   name="address"
                   value={quickLeadData.address}
                   onChange={handleQuickLeadChange}
                   placeholder="Dirección de instalación"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-              </div>
+                /&gt;
+              &lt;/div&gt;
 
-              <div className="flex gap-3 pt-2">
-                <button
+              &lt;div className="flex gap-3 pt-2"&gt;
+                &lt;button
                   type="button"
                   onClick={handleCloseQuickLead}
                   className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                >
+                &gt;
                   Cancelar
-                </button>
-                <button
+                &lt;/button&gt;
+                &lt;button
                   type="submit"
                   disabled={savingLead || !quickLeadData.name || !quickLeadData.phone}
                   className="flex-1 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                &gt;
                   {savingLead ? 'Guardando...' : 'Agregar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/form&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
       )}
 
       {/* Create/Edit Installation Modal */}
-      <Modal
+      &lt;Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         title={isEditMode ? 'Editar Instalación' : 'Nueva Instalacion'}
         subtitle={isEditMode ? 'Modifica los datos de la instalación' : 'Programa una instalacion de cerradura'}
         size="lg"
         footer={
-          <>
-            <button
+          &lt;&gt;
+            &lt;button
               onClick={handleCloseModal}
               className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
+            &gt;
               Cancelar
-            </button>
-            <button
+            &lt;/button&gt;
+            &lt;button
               onClick={handleSubmit}
-              disabled={saving || !formData.lead_id || !formData.product_id || !formData.address || !formData.total_price}
+              disabled={saving || !formData.lead_id || selectedProducts.length === 0 || !formData.address}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            &gt;
               {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Instalacion'}
-            </button>
-          </>
+            &lt;/button&gt;
+          &lt;/&gt;
         }
-      >
+      &gt;
         {loadingOptions ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
-          </div>
+          &lt;div className="flex items-center justify-center py-12"&gt;
+            &lt;div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" /&gt;
+          &lt;/div&gt;
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          &lt;form onSubmit={handleSubmit} className="space-y-4"&gt;
+            {error &amp;&amp; (
+              &lt;div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"&gt;
                 {error}
-              </div>
+              &lt;/div&gt;
             )}
 
             {/* Lead Selection with Add Button */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Cliente (Lead) *
-              </label>
-              <div className="flex gap-2">
-                <select
+              &lt;/label&gt;
+              &lt;div className="flex gap-2"&gt;
+                &lt;select
                   name="lead_id"
                   value={formData.lead_id}
                   onChange={handleInputChange}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none disabled:bg-gray-100"
                   required
                   disabled={isEditMode} // Cannot change lead in edit mode
-                >
-                  <option value="">Seleccionar cliente...</option>
-                  {leads.map((lead) => (
-                    <option key={lead.id} value={lead.id}>
+                &gt;
+                  &lt;option value=""&gt;Seleccionar cliente...&lt;/option&gt;
+                  {leads.map((lead) =&gt; (
+                    &lt;option key={lead.id} value={lead.id}&gt;
                       {lead.name} - {lead.phone}
-                    </option>
+                    &lt;/option&gt;
                   ))}
-                </select>
-                {!isEditMode && (
-                  <button
+                &lt;/select&gt;
+                {!isEditMode &amp;&amp; (
+                  &lt;button
                     type="button"
                     onClick={handleOpenQuickLead}
                     className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
                     title="Agregar cliente nuevo"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                  </button>
+                  &gt;
+                    &lt;UserPlus className="w-4 h-4" /&gt;
+                  &lt;/button&gt;
                 )}
-              </div>
-              {isEditMode && (
-                <p className="text-xs text-gray-500 mt-1">El cliente no se puede cambiar</p>
+              &lt;/div&gt;
+              {isEditMode &amp;&amp; (
+                &lt;p className="text-xs text-gray-500 mt-1"&gt;El cliente no se puede cambiar&lt;/p&gt;
               )}
-            </div>
+            &lt;/div&gt;
 
-            {/* Product Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Producto *
-                </label>
-                <select
-                  name="product_id"
-                  value={formData.product_id}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  required
-                >
-                  <option value="">Seleccionar producto...</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} - ${product.price.toLocaleString()}
-                    </option>
+            {/* Product Search and Selection */}
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
+                Productos *
+              &lt;/label&gt;
+              
+              {/* Search Input */}
+              &lt;div className="relative" ref={productSearchRef}&gt;
+                &lt;div className="flex gap-2"&gt;
+                  &lt;div className="flex-1 relative"&gt;
+                    &lt;Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /&gt;
+                    &lt;input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) =&gt; {
+                        setProductSearch(e.target.value);
+                        setIsProductDropdownOpen(true);
+                      }}
+                      onFocus={() =&gt; setIsProductDropdownOpen(true)}
+                      placeholder="Buscar producto por nombre o modelo..."
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                    /&gt;
+                  &lt;/div&gt;
+                  &lt;input
+                    type="number"
+                    value={tempQuantity}
+                    onChange={(e) =&gt; setTempQuantity(e.target.value)}
+                    min="1"
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-center"
+                    placeholder="Cant"
+                  /&gt;
+                &lt;/div&gt;
+
+                {/* Dropdown */}
+                {isProductDropdownOpen &amp;&amp; (
+                  &lt;div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"&gt;
+                    {filteredProducts.length === 0 ? (
+                      &lt;div className="px-4 py-3 text-gray-500 text-sm"&gt;
+                        No se encontraron productos
+                      &lt;/div&gt;
+                    ) : (
+                      filteredProducts.map((product) =&gt; (
+                        &lt;button
+                          key={product.id}
+                          type="button"
+                          onClick={() =&gt; handleAddProduct(product)}
+                          className="w-full px-4 py-3 text-left hover:bg-cyan-50 flex justify-between items-center border-b border-gray-100 last:border-b-0"
+                        &gt;
+                          &lt;div&gt;
+                            &lt;p className="font-medium text-gray-900"&gt;{product.name}&lt;/p&gt;
+                            {product.model &amp;&amp; (
+                              &lt;p className="text-xs text-gray-500"&gt;{product.model}&lt;/p&gt;
+                            )}
+                          &lt;/div&gt;
+                          &lt;span className="font-semibold text-cyan-600"&gt;
+                            ${product.price.toLocaleString()}
+                          &lt;/span&gt;
+                        &lt;/button&gt;
+                      ))
+                    )}
+                  &lt;/div&gt;
+                )}
+              &lt;/div&gt;
+
+              {/* Selected Products List */}
+              {selectedProducts.length &gt; 0 &amp;&amp; (
+                &lt;div className="mt-3 space-y-2"&gt;
+                  {selectedProducts.map((item) =&gt; (
+                    &lt;div
+                      key={item.product_id}
+                      className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200"
+                    &gt;
+                      &lt;div className="flex-1"&gt;
+                        &lt;p className="font-medium text-gray-900 text-sm"&gt;{item.product_name}&lt;/p&gt;
+                        &lt;p className="text-xs text-gray-500"&gt;
+                          ${item.product_price.toLocaleString()} x {item.quantity} = ${(item.product_price * item.quantity).toLocaleString()}
+                        &lt;/p&gt;
+                      &lt;/div&gt;
+                      &lt;div className="flex items-center gap-2"&gt;
+                        &lt;input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =&gt; handleUpdateProductQuantity(item.product_id, parseInt(e.target.value) || 1)}
+                          min="1"
+                          className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                        /&gt;
+                        &lt;button
+                          type="button"
+                          onClick={() =&gt; handleRemoveProduct(item.product_id)}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        &gt;
+                          &lt;Trash2 className="w-4 h-4" /&gt;
+                        &lt;/button&gt;
+                      &lt;/div&gt;
+                    &lt;/div&gt;
                   ))}
-                </select>
-              </div>
+                &lt;/div&gt;
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cantidad
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-              </div>
-            </div>
+              {selectedProducts.length === 0 &amp;&amp; (
+                &lt;p className="text-xs text-gray-500 mt-2"&gt;
+                  Busca y selecciona uno o más productos
+                &lt;/p&gt;
+              )}
+            &lt;/div&gt;
 
             {/* Technician Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Tecnico Asignado
-              </label>
-              <select
+              &lt;/label&gt;
+              &lt;select
                 name="technician_id"
                 value={formData.technician_id}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-              >
-                <option value="">Sin asignar (programar despues)</option>
-                {technicians.map((tech) => (
-                  <option key={tech.id} value={tech.id}>
+              &gt;
+                &lt;option value=""&gt;Sin asignar (programar despues)&lt;/option&gt;
+                {technicians.map((tech) =&gt; (
+                  &lt;option key={tech.id} value={tech.id}&gt;
                     {tech.full_name} - {tech.zone || 'Sin zona'}
-                  </option>
+                  &lt;/option&gt;
                 ))}
-              </select>
-            </div>
+              &lt;/select&gt;
+            &lt;/div&gt;
 
             {/* Schedule */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div className="grid grid-cols-2 gap-4"&gt;
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Fecha Programada
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="date"
                   name="scheduled_date"
                   value={formData.scheduled_date}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-              </div>
+                /&gt;
+              &lt;/div&gt;
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Hora
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="time"
                   name="scheduled_time"
                   value={formData.scheduled_time}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-              </div>
-            </div>
+                /&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
 
             {/* Address */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div className="grid grid-cols-3 gap-4"&gt;
+              &lt;div className="col-span-2"&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Direccion *
-                </label>
-                <input
+                &lt;/label&gt;
+                &lt;input
                   type="text"
                   name="address"
                   value={formData.address}
@@ -1143,90 +1289,90 @@ export default function InstallationsPage() {
                   placeholder="Ej: Calle 123 #45-67, Apto 101"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                   required
-                />
-              </div>
+                /&gt;
+              &lt;/div&gt;
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              &lt;div&gt;
+                &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                   Ciudad
-                </label>
-                <select
+                &lt;/label&gt;
+                &lt;select
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                >
-                  <option value="">Seleccionar...</option>
-                  {CITIES.map((city) => (
-                    <option key={city.value} value={city.label}>
+                &gt;
+                  &lt;option value=""&gt;Seleccionar...&lt;/option&gt;
+                  {CITIES.map((city) =&gt; (
+                    &lt;option key={city.value} value={city.label}&gt;
                       {city.label}
-                    </option>
+                    &lt;/option&gt;
                   ))}
-                </select>
-              </div>
-            </div>
+                &lt;/select&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Indicaciones de Acceso
-              </label>
-              <input
+              &lt;/label&gt;
+              &lt;input
                 type="text"
                 name="address_notes"
                 value={formData.address_notes}
                 onChange={handleInputChange}
                 placeholder="Ej: Timbre 101, porteria 24h, llamar al llegar"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-              />
-            </div>
+              /&gt;
+            &lt;/div&gt;
 
             {/* Installation Price Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Precio de Instalación *
-              </label>
-              <select
+              &lt;/label&gt;
+              &lt;select
                 name="installation_price"
                 value={formData.installation_price}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                 required
-              >
-                {INSTALLATION_PRICES.map((price) => (
-                  <option key={price.value} value={price.value}>
+              &gt;
+                {INSTALLATION_PRICES.map((price) =&gt; (
+                  &lt;option key={price.value} value={price.value}&gt;
                     {price.label}
-                  </option>
+                  &lt;/option&gt;
                 ))}
-              </select>
-            </div>
+              &lt;/select&gt;
+            &lt;/div&gt;
 
             {/* Discount Section */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Descuento
-              </label>
-              <div className="flex gap-2">
-                <select
+              &lt;/label&gt;
+              &lt;div className="flex gap-2"&gt;
+                &lt;select
                   name="discount_type"
                   value={formData.discount_type}
                   onChange={handleInputChange}
                   className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                >
-                  <option value="none">Sin descuento</option>
-                  <option value="percentage">Porcentaje (%)</option>
-                  <option value="value">Valor fijo ($)</option>
-                </select>
+                &gt;
+                  &lt;option value="none"&gt;Sin descuento&lt;/option&gt;
+                  &lt;option value="percentage"&gt;Porcentaje (%)&lt;/option&gt;
+                  &lt;option value="value"&gt;Valor fijo ($)&lt;/option&gt;
+                &lt;/select&gt;
                 
-                {formData.discount_type !== 'none' && (
-                  <div className="flex-1 relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                {formData.discount_type !== 'none' &amp;&amp; (
+                  &lt;div className="flex-1 relative"&gt;
+                    &lt;div className="absolute left-3 top-1/2 -translate-y-1/2"&gt;
                       {formData.discount_type === 'percentage' ? (
-                        <Percent className="w-4 h-4 text-gray-400" />
+                        &lt;Percent className="w-4 h-4 text-gray-400" /&gt;
                       ) : (
-                        <DollarSign className="w-4 h-4 text-gray-400" />
+                        &lt;DollarSign className="w-4 h-4 text-gray-400" /&gt;
                       )}
-                    </div>
-                    <input
+                    &lt;/div&gt;
+                    &lt;input
                       type="number"
                       name="discount_value"
                       value={formData.discount_value}
@@ -1235,80 +1381,82 @@ export default function InstallationsPage() {
                       min="0"
                       max={formData.discount_type === 'percentage' ? '100' : undefined}
                       className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                    />
-                  </div>
+                    /&gt;
+                  &lt;/div&gt;
                 )}
-              </div>
-            </div>
+              &lt;/div&gt;
+            &lt;/div&gt;
 
             {/* Price Breakdown */}
-            {selectedProduct && priceBreakdown && priceBreakdown.subtotal > 0 && (
-              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">
-                      {selectedProduct.name} x {formData.quantity}
-                    </span>
-                    <span className="font-medium">
-                      ${(selectedProduct.price * parseInt(formData.quantity || '1')).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Instalación</span>
-                    <span className="font-medium">
+            {priceBreakdown &amp;&amp; priceBreakdown.subtotal &gt; 0 &amp;&amp; (
+              &lt;div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4"&gt;
+                &lt;h4 className="text-sm font-semibold text-cyan-800 mb-3"&gt;Resumen de Precio&lt;/h4&gt;
+                &lt;div className="space-y-2 text-sm"&gt;
+                  {selectedProducts.map((item) =&gt; (
+                    &lt;div key={item.product_id} className="flex justify-between"&gt;
+                      &lt;span className="text-gray-600"&gt;
+                        {item.product_name} x {item.quantity}
+                      &lt;/span&gt;
+                      &lt;span className="font-medium"&gt;
+                        ${(item.product_price * item.quantity).toLocaleString()}
+                      &lt;/span&gt;
+                    &lt;/div&gt;
+                  ))}
+                  &lt;div className="flex justify-between"&gt;
+                    &lt;span className="text-gray-600"&gt;Instalación&lt;/span&gt;
+                    &lt;span className="font-medium"&gt;
                       ${parseInt(formData.installation_price).toLocaleString()}
-                    </span>
-                  </div>
+                    &lt;/span&gt;
+                  &lt;/div&gt;
                   
                   {/* Subtotal before discount */}
-                  {priceBreakdown.discount > 0 && (
-                    <>
-                      <div className="flex justify-between pt-2 border-t border-cyan-200">
-                        <span className="text-gray-600">Subtotal</span>
-                        <span className="font-medium">
+                  {priceBreakdown.discount &gt; 0 &amp;&amp; (
+                    &lt;&gt;
+                      &lt;div className="flex justify-between pt-2 border-t border-cyan-200"&gt;
+                        &lt;span className="text-gray-600"&gt;Subtotal&lt;/span&gt;
+                        &lt;span className="font-medium"&gt;
                           ${priceBreakdown.subtotal.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-red-600">
-                        <span>
+                        &lt;/span&gt;
+                      &lt;/div&gt;
+                      &lt;div className="flex justify-between text-red-600"&gt;
+                        &lt;span&gt;
                           Descuento 
-                          {formData.discount_type === 'percentage' && ` (${formData.discount_value}%)`}
-                        </span>
-                        <span className="font-medium">
+                          {formData.discount_type === 'percentage' &amp;&amp; ` (${formData.discount_value}%)`}
+                        &lt;/span&gt;
+                        &lt;span className="font-medium"&gt;
                           -${priceBreakdown.discount.toLocaleString()}
-                        </span>
-                      </div>
-                    </>
+                        &lt;/span&gt;
+                      &lt;/div&gt;
+                    &lt;/&gt;
                   )}
                   
-                  <div className="flex justify-between pt-3 border-t border-cyan-200">
-                    <span className="font-bold text-cyan-900 text-base">TOTAL A COBRAR</span>
-                    <span className="font-bold text-cyan-700 text-xl">
+                  &lt;div className="flex justify-between pt-3 border-t border-cyan-200"&gt;
+                    &lt;span className="font-bold text-cyan-900 text-base"&gt;TOTAL A COBRAR&lt;/span&gt;
+                    &lt;span className="font-bold text-cyan-700 text-xl"&gt;
                       ${priceBreakdown.total.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                    &lt;/span&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
             )}
 
             {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            &lt;div&gt;
+              &lt;label className="block text-sm font-medium text-gray-700 mb-1"&gt;
                 Notas del Cliente
-              </label>
-              <textarea
+              &lt;/label&gt;
+              &lt;textarea
                 name="customer_notes"
                 value={formData.customer_notes}
                 onChange={handleInputChange}
                 rows={2}
                 placeholder="Instrucciones especiales, tipo de puerta, etc..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
-              />
-            </div>
-          </form>
+              /&gt;
+            &lt;/div&gt;
+          &lt;/form&gt;
         )}
-      </Modal>
-    </div>
+      &lt;/Modal&gt;
+    &lt;/div&gt;
   );
 }
