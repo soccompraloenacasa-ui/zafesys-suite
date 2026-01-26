@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Play, Square, Clock, User, Shield } from 'lucide-react';
-import { TimerResponse, TimerStartedBy } from '../types';
+import type { TimerResponse, TimerStartedBy } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
@@ -54,7 +54,7 @@ export const InstallationTimer: React.FC<InstallationTimerProps> = ({
 
   // Real-time elapsed time update
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     
     if (isRunning && startedAt) {
       interval = setInterval(() => {

@@ -2,7 +2,7 @@
  * Timer API Service
  * Functions for interacting with installation timer endpoints
  */
-import { TimerResponse } from '../types';
+import type { TimerResponse } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
