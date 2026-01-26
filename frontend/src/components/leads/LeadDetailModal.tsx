@@ -32,6 +32,8 @@ const statusLabels: Record<LeadStatus, { label: string; color: string }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-700' },
   en_conversacion: { label: 'En conversación', color: 'bg-yellow-100 text-yellow-700' },
   potencial: { label: 'Potencial', color: 'bg-purple-100 text-purple-700' },
+  agendado: { label: '📅 Agendado', color: 'bg-cyan-100 text-cyan-700' },
+  instalado: { label: '✅ Instalado', color: 'bg-emerald-100 text-emerald-700' },
   venta_cerrada: { label: 'Venta cerrada', color: 'bg-green-100 text-green-700' },
   perdido: { label: 'Perdido', color: 'bg-red-100 text-red-700' },
 };
