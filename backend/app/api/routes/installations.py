@@ -12,7 +12,7 @@ from app.schemas import (
     InstallationStatusUpdate, InstallationPaymentUpdate, InstallationCompleteRequest
 )
 from app.schemas.installation import TimerStartRequest, TimerResponse
-from app.models import User, InstallationStatus
+from app.models import User, InstallationStatus, LeadStatus
 from app.core.timezone import today_colombia
 
 router = APIRouter()
@@ -120,6 +120,9 @@ def create_installation(
         db, db_obj=product, quantity=installation_in.quantity, operation="subtract"
     )
 
+    # Update lead status to "agendado" (has scheduled installation)
+    crud.lead.update_status(db, db_obj=lead, status=LeadStatus.AGENDADO)
+
     return installation
 
 
@@ -158,6 +161,13 @@ def update_installation_status(
             detail="Installation not found"
         )
     installation = crud.installation.update_status(db, db_obj=installation, status=status_in.status)
+    
+    # If installation is completed, update lead to "instalado" (now a customer!)
+    if status_in.status == InstallationStatus.COMPLETADA:
+        lead = crud.lead.get(db, id=installation.lead_id)
+        if lead:
+            crud.lead.update_status(db, db_obj=lead, status=LeadStatus.INSTALADO)
+    
     return installation
 
 
@@ -207,6 +217,12 @@ def complete_installation(
         technician_notes=complete_in.technician_notes,
         photo_proof_url=complete_in.photo_proof_url
     )
+    
+    # Update lead to "instalado" - now a customer!
+    lead = crud.lead.get(db, id=installation.lead_id)
+    if lead:
+        crud.lead.update_status(db, db_obj=lead, status=LeadStatus.INSTALADO)
+    
     return installation
 
 
