@@ -33,6 +33,7 @@ interface SelectedProduct {
   product_id: number;
   product_name: string;
   product_price: number;
+  product_image?: string;
   quantity: number;
 }
 
@@ -253,11 +254,12 @@ export default function InstallationsPage() {
       updated[existingIndex].quantity += quantity;
       setSelectedProducts(updated);
     } else {
-      // Add new product
+      // Add new product with image
       setSelectedProducts([...selectedProducts, {
         product_id: product.id,
         product_name: product.name,
         product_price: product.price,
+        product_image: product.image_url,
         quantity: quantity
       }]);
     }
@@ -414,6 +416,7 @@ export default function InstallationsPage() {
           product_id: existingProduct.id,
           product_name: existingProduct.name,
           product_price: existingProduct.price,
+          product_image: existingProduct.image_url,
           quantity: installation.quantity || 1
         }]);
       }
@@ -853,8 +856,16 @@ export default function InstallationsPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Producto</h3>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-6 h-6 text-cyan-600" />
+                    <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center overflow-hidden">
+                      {selectedInstallation.product?.image_url ? (
+                        <img 
+                          src={selectedInstallation.product.image_url} 
+                          alt={selectedInstallation.product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Package className="w-6 h-6 text-cyan-600" />
+                      )}
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">
@@ -1166,15 +1177,27 @@ export default function InstallationsPage() {
                           key={product.id}
                           type="button"
                           onClick={() => handleAddProduct(product)}
-                          className="w-full px-4 py-3 text-left hover:bg-cyan-50 flex justify-between items-center border-b border-gray-100 last:border-b-0"
+                          className="w-full px-4 py-3 text-left hover:bg-cyan-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
                         >
-                          <div>
-                            <p className="font-medium text-gray-900">{product.name}</p>
-                            {product.model && (
-                              <p className="text-xs text-gray-500">{product.model}</p>
+                          {/* Product thumbnail in dropdown */}
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
+                            {product.image_url ? (
+                              <img 
+                                src={product.image_url} 
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
-                          <span className="font-semibold text-cyan-600">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{product.name}</p>
+                            {product.model && (
+                              <p className="text-xs text-gray-500 truncate">{product.model}</p>
+                            )}
+                          </div>
+                          <span className="font-semibold text-cyan-600 flex-shrink-0">
                             ${product.price.toLocaleString()}
                           </span>
                         </button>
@@ -1190,15 +1213,27 @@ export default function InstallationsPage() {
                   {selectedProducts.map((item) => (
                     <div
                       key={item.product_id}
-                      className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200"
+                      className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border border-gray-200"
                     >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 text-sm">{item.product_name}</p>
+                      {/* Product thumbnail - small (36px) */}
+                      <div className="w-9 h-9 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
+                        {item.product_image ? (
+                          <img 
+                            src={item.product_image} 
+                            alt={item.product_name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">{item.product_name}</p>
                         <p className="text-xs text-gray-500">
                           ${item.product_price.toLocaleString()} x {item.quantity} = ${(item.product_price * item.quantity).toLocaleString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <input
                           type="number"
                           value={item.quantity}
@@ -1393,16 +1428,30 @@ export default function InstallationsPage() {
                 <h4 className="text-sm font-semibold text-cyan-800 mb-3">Resumen de Precio</h4>
                 <div className="space-y-2 text-sm">
                   {selectedProducts.map((item) => (
-                    <div key={item.product_id} className="flex justify-between">
-                      <span className="text-gray-600">
-                        {item.product_name} x {item.quantity}
-                      </span>
-                      <span className="font-medium">
+                    <div key={item.product_id} className="flex items-center gap-3">
+                      {/* Product thumbnail - larger (48px) */}
+                      <div className="w-12 h-12 bg-white rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-cyan-200">
+                        {item.product_image ? (
+                          <img 
+                            src={item.product_image} 
+                            alt={item.product_name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package className="w-6 h-6 text-cyan-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-gray-700 block truncate">
+                          {item.product_name} x {item.quantity}
+                        </span>
+                      </div>
+                      <span className="font-medium flex-shrink-0">
                         ${(item.product_price * item.quantity).toLocaleString()}
                       </span>
                     </div>
                   ))}
-                  <div className="flex justify-between">
+                  <div className="flex justify-between pt-2 border-t border-cyan-200">
                     <span className="text-gray-600">Instalación</span>
                     <span className="font-medium">
                       ${parseInt(formData.installation_price).toLocaleString()}
