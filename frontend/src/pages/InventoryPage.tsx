@@ -13,6 +13,7 @@ import {
   X,
   Warehouse,
   Edit2,
+  ZoomIn,
 } from 'lucide-react';
 import { inventoryApi, warehousesApi, type InventorySummary, type ProductInventory, type InventoryMovement, type Warehouse as WarehouseType, type ProductWithWarehouseStock } from '../services/api';
 
@@ -43,6 +44,9 @@ export default function InventoryPage() {
   const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
   const [warehouseModalProduct, setWarehouseModalProduct] = useState<ProductWithWarehouseStock | null>(null);
   const [warehouseStocks, setWarehouseStocks] = useState<{[key: number]: number}>({});
+
+  // Image lightbox state
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -86,6 +90,15 @@ export default function InventoryPage() {
     });
     setWarehouseStocks(stocks);
     setIsWarehouseModalOpen(true);
+  };
+
+  // Image lightbox handlers
+  const handleOpenImage = (url: string, name: string) => {
+    setEnlargedImage({ url, name });
+  };
+
+  const handleCloseImage = () => {
+    setEnlargedImage(null);
   };
 
   const handleSaveMovement = async () => {
@@ -260,8 +273,36 @@ export default function InventoryPage() {
               {products.map((product) => (
                 <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{product.name}</p>
-                    <p className="text-xs text-gray-500">{product.model} • {product.sku}</p>
+                    <div className="flex items-center gap-3">
+                      {/* Product thumbnail - clickable */}
+                      <div 
+                        className={`w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center relative group ${product.image_url ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400 transition-all' : ''}`}
+                        onClick={() => {
+                          if (product.image_url) {
+                            handleOpenImage(product.image_url, product.name);
+                          }
+                        }}
+                      >
+                        {product.image_url ? (
+                          <>
+                            <img 
+                              src={product.image_url} 
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </>
+                        ) : (
+                          <Package className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{product.name}</p>
+                        <p className="text-xs text-gray-500">{product.model} • {product.sku}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="text-lg font-bold text-gray-900">{product.stock}</span>
@@ -334,7 +375,31 @@ export default function InventoryPage() {
                   return (
                     <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
+                          {/* Product thumbnail - clickable */}
+                          <div 
+                            className={`w-10 h-10 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center relative group ${product.image_url ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400 transition-all' : ''}`}
+                            onClick={() => {
+                              if (product.image_url) {
+                                handleOpenImage(product.image_url, product.name);
+                              }
+                            }}
+                          >
+                            {product.image_url ? (
+                              <>
+                                <img 
+                                  src={product.image_url} 
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                  <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </>
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
                           {colorLabel && <span className={`text-xs px-2 py-0.5 rounded ${getColorBadgeStyle(colorLabel)}`}>{colorLabel.charAt(0).toUpperCase() + colorLabel.slice(1)}</span>}
                           <div>
                             <p className="font-medium text-gray-900">{product.sku}</p>
@@ -371,9 +436,35 @@ export default function InventoryPage() {
           ) : productsWithAlerts.map((product) => (
             <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4">
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{product.name}</h3>
-                  <p className="text-sm text-gray-500">{product.model} • Stock: {product.stock}</p>
+                <div className="flex items-center gap-3">
+                  {/* Product thumbnail - clickable */}
+                  <div 
+                    className={`w-14 h-14 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center relative group ${product.image_url ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400 transition-all' : ''}`}
+                    onClick={() => {
+                      if (product.image_url) {
+                        handleOpenImage(product.image_url, product.name);
+                      }
+                    }}
+                  >
+                    {product.image_url ? (
+                      <>
+                        <img 
+                          src={product.image_url} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </>
+                    ) : (
+                      <Package className="w-7 h-7 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{product.name}</h3>
+                    <p className="text-sm text-gray-500">{product.model} • Stock: {product.stock}</p>
+                  </div>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(product.stock_status)}`}>{getStatusLabel(product.stock_status)}</span>
               </div>
@@ -419,6 +510,39 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* Image Lightbox Modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
+          onClick={handleCloseImage}
+        >
+          <div 
+            className="relative max-w-3xl max-h-[90vh] bg-white rounded-xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={handleCloseImage}
+              className="absolute top-3 right-3 z-10 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            {/* Product name */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+              <p className="text-white font-medium text-lg">{enlargedImage.name}</p>
+            </div>
+            
+            {/* Image */}
+            <img
+              src={enlargedImage.url}
+              alt={enlargedImage.name}
+              className="max-w-full max-h-[85vh] object-contain"
+            />
+          </div>
+        </div>
+      )}
+
       {isModalOpen && modalProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md">
@@ -430,6 +554,22 @@ export default function InventoryPage() {
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/20 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
+              {/* Product image in modal */}
+              {modalProduct.image_url && (
+                <div 
+                  className="w-24 h-24 mx-auto bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-cyan-400 transition-all relative group"
+                  onClick={() => handleOpenImage(modalProduct.image_url!, modalProduct.name)}
+                >
+                  <img 
+                    src={modalProduct.image_url} 
+                    alt={modalProduct.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              )}
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-500 mb-1">Stock actual</p>
                 <p className="text-3xl font-bold text-gray-900">{modalProduct.stock}</p>
@@ -463,6 +603,22 @@ export default function InventoryPage() {
               <button onClick={() => setIsWarehouseModalOpen(false)} className="p-2 hover:bg-white/20 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
+              {/* Product image in warehouse modal */}
+              {warehouseModalProduct.image_url && (
+                <div 
+                  className="w-24 h-24 mx-auto bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-purple-400 transition-all relative group"
+                  onClick={() => handleOpenImage(warehouseModalProduct.image_url!, warehouseModalProduct.name)}
+                >
+                  <img 
+                    src={warehouseModalProduct.image_url} 
+                    alt={warehouseModalProduct.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              )}
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-500 mb-1">Stock total actual</p>
                 <p className="text-3xl font-bold text-gray-900">{totalWarehouseStock(warehouseModalProduct)}</p>
