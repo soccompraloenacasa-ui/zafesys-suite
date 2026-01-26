@@ -115,6 +115,12 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_tech_locations_technician ON technician_locations(technician_id);",
         "CREATE INDEX IF NOT EXISTS idx_tech_locations_recorded_at ON technician_locations(recorded_at);",
         "CREATE INDEX IF NOT EXISTS idx_tech_locations_tech_time ON technician_locations(technician_id, recorded_at DESC);",
+        
+        # Installation Timer columns - for tracking actual installation duration
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_ended_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_by VARCHAR(20);",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS installation_duration_minutes INTEGER;",
     ]
     
     with engine.connect() as conn:
