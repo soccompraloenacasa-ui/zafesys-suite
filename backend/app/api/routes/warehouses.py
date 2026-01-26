@@ -221,9 +221,9 @@ def update_product_stock_by_warehouse(product_id: int, stocks: List[ProductWareh
 @router.get("/inventory-with-warehouses")
 def get_inventory_with_warehouses(db: Session = Depends(get_db)):
     """Get all products with their stock by warehouse."""
-    # Get all products
+    # Get all products including image_url
     products_result = db.execute(text("""
-        SELECT id, name, sku, stock, min_stock_alert, features
+        SELECT id, name, sku, stock, min_stock_alert, features, image_url
         FROM products
         WHERE is_active = true
         ORDER BY sku
@@ -258,6 +258,7 @@ def get_inventory_with_warehouses(db: Session = Depends(get_db)):
             "stock": p_row[3],
             "min_stock_alert": p_row[4],
             "features": p_row[5],
+            "image_url": p_row[6],
             "warehouse_stocks": warehouse_stocks,
         })
     
