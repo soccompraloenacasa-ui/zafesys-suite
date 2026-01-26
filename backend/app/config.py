@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
-    # CORS - Default includes Vercel deployment
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://zafesys-suite.vercel.app,https://zafesys-suite-git-main-soccompraloenacasa-ui.vercel.app"
+    # CORS - Allow all for development, includes Vercel deployment and Flutter app
+    CORS_ORIGINS: str = "*"
 
     # ElevenLabs
     ELEVENLABS_WEBHOOK_SECRET: str = ""
