@@ -278,6 +278,7 @@ export interface ProductInventory {
   avg_daily_sales: number;
   days_of_stock: number | null;
   alerts: string[];
+  image_url?: string;
 }
 
 export interface InventoryMovement {
@@ -368,6 +369,7 @@ export interface ProductWithWarehouseStock {
   min_stock_alert: number;
   features: string | null;
   warehouse_stocks: WarehouseStock[];
+  image_url?: string;
 }
 
 export const warehousesApi = {
