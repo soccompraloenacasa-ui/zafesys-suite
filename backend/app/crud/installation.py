@@ -6,7 +6,6 @@ from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 from app.crud.base import CRUDBase
 from app.models import Installation, InstallationStatus, PaymentStatus
-from app.models.installation import TimerStartedBy
 from app.schemas import InstallationCreate, InstallationUpdate
 
 
@@ -168,7 +167,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         db: Session,
         *,
         db_obj: Installation,
-        started_by: TimerStartedBy
+        started_by: str  # 'admin' or 'technician'
     ) -> Installation:
         """
         Start the installation timer.
