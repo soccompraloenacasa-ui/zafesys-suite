@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from app.api.deps import get_db
 from app import crud
 from app.models.technician import Technician, TechnicianLocation
-from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod, TimerStartedBy
+from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
 from app.core.security import create_access_token
 
 router = APIRouter()
@@ -260,7 +260,7 @@ def get_my_installations(
             customer_notes=inst.customer_notes,
             timer_started_at=inst.timer_started_at,
             timer_ended_at=inst.timer_ended_at,
-            timer_started_by=inst.timer_started_by.value if inst.timer_started_by else None,
+            timer_started_by=inst.timer_started_by,
             installation_duration_minutes=inst.installation_duration_minutes
         ))
 
@@ -307,7 +307,7 @@ def get_installation_detail(
         customer_notes=installation.customer_notes,
         timer_started_at=installation.timer_started_at,
         timer_ended_at=installation.timer_ended_at,
-        timer_started_by=installation.timer_started_by.value if installation.timer_started_by else None,
+        timer_started_by=installation.timer_started_by,
         installation_duration_minutes=installation.installation_duration_minutes
     )
 
@@ -390,17 +390,17 @@ def start_timer(
             installation_id=timer_status["installation_id"],
             timer_started_at=timer_status["timer_started_at"],
             timer_ended_at=timer_status["timer_ended_at"],
-            timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+            timer_started_by=timer_status["timer_started_by"],
             installation_duration_minutes=timer_status["installation_duration_minutes"],
             is_running=timer_status["is_running"],
             elapsed_minutes=timer_status["elapsed_minutes"]
         )
 
-    # Start the timer
+    # Start the timer with 'technician' as the starter
     installation = crud.installation.start_timer(
         db,
         db_obj=installation,
-        started_by=TimerStartedBy.TECHNICIAN
+        started_by="technician"
     )
 
     timer_status = crud.installation.get_timer_status(installation)
@@ -408,7 +408,7 @@ def start_timer(
         installation_id=timer_status["installation_id"],
         timer_started_at=timer_status["timer_started_at"],
         timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        timer_started_by=timer_status["timer_started_by"],
         installation_duration_minutes=timer_status["installation_duration_minutes"],
         is_running=timer_status["is_running"],
         elapsed_minutes=timer_status["elapsed_minutes"]
@@ -459,7 +459,7 @@ def stop_timer(
         installation_id=timer_status["installation_id"],
         timer_started_at=timer_status["timer_started_at"],
         timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        timer_started_by=timer_status["timer_started_by"],
         installation_duration_minutes=timer_status["installation_duration_minutes"],
         is_running=timer_status["is_running"],
         elapsed_minutes=timer_status["elapsed_minutes"]
@@ -495,7 +495,7 @@ def get_timer_status(
         installation_id=timer_status["installation_id"],
         timer_started_at=timer_status["timer_started_at"],
         timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"].value if timer_status["timer_started_by"] else None,
+        timer_started_by=timer_status["timer_started_by"],
         installation_duration_minutes=timer_status["installation_duration_minutes"],
         is_running=timer_status["is_running"],
         elapsed_minutes=timer_status["elapsed_minutes"]
