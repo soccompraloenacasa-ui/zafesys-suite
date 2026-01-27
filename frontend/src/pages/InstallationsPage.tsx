@@ -406,6 +406,27 @@ export default function InstallationsPage() {
     setSelectedInstallation(null);
   };
 
+  const handleDeleteInstallation = async (e: React.MouseEvent, installationId: number) => {
+    e.stopPropagation(); // Prevent opening detail modal
+
+    if (!confirm(`¿Eliminar instalación #${installationId}?`)) {
+      return;
+    }
+
+    try {
+      await installationsApi.delete(installationId);
+      // Refresh the list
+      fetchInstallations(currentDate);
+      // Close detail modal if it was open for this installation
+      if (selectedInstallation?.id === installationId) {
+        handleCloseDetail();
+      }
+    } catch (error) {
+      console.error('Error deleting installation:', error);
+      alert('Error al eliminar la instalación');
+    }
+  };
+
   const openMaps = (address: string, city?: string) => {
     const fullAddress = city ? `${address}, ${city}` : address;
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
@@ -783,21 +804,30 @@ export default function InstallationsPage() {
                         <div
                           key={inst.id}
                           onClick={() => handleOpenDetail(inst)}
-                          className={`p-2 rounded-lg cursor-pointer transition-all border ${
+                          className={`relative p-2 rounded-lg cursor-pointer transition-all border ${
                             overtimeInfo.isOvertime
                               ? 'bg-red-50 border-red-300 hover:bg-red-100 animate-pulse'
                               : 'bg-gray-50 border-transparent hover:bg-cyan-50 hover:border-cyan-200'
                           }`}
                         >
+                          {/* Delete Button */}
+                          <button
+                            onClick={(e) => handleDeleteInstallation(e, inst.id)}
+                            className="absolute top-1 right-1 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors z-10"
+                            title="Eliminar instalación"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Overtime Alert Banner */}
                           {overtimeInfo.isOvertime && (
-                            <div className="flex items-center gap-1 text-xs text-red-700 font-bold mb-1 bg-red-200 rounded px-1.5 py-0.5">
+                            <div className="flex items-center gap-1 text-xs text-red-700 font-bold mb-1 bg-red-200 rounded px-1.5 py-0.5 mr-5">
                               <AlertTriangle className="w-3 h-3" />
                               +{overtimeInfo.overtimeMinutes}min excedido
                             </div>
                           )}
-                          
-                          <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mb-1 mr-5">
                             <Clock className={`w-3 h-3 ${overtimeInfo.isOvertime ? 'text-red-500' : ''}`} />
                             {inst.scheduled_time || 'Sin hora'}
                             {/* Show elapsed time for in-progress installations */}
@@ -819,8 +849,8 @@ export default function InstallationsPage() {
                           <div className="flex items-center gap-1 mt-2">
                             <span
                               className={`inline-block text-xs px-2 py-0.5 rounded ${
-                                overtimeInfo.isOvertime 
-                                  ? 'bg-red-600 text-white' 
+                                overtimeInfo.isOvertime
+                                  ? 'bg-red-600 text-white'
                                   : status.color
                               }`}
                             >
