@@ -136,6 +136,13 @@ def run_migrations():
         "ALTER TABLE installations ALTER COLUMN payment_method TYPE VARCHAR(30) USING payment_method::text;",
         "ALTER TABLE leads ALTER COLUMN status TYPE VARCHAR(30) USING status::text;",
         "ALTER TABLE leads ALTER COLUMN source TYPE VARCHAR(30) USING source::text;",
+
+        # Normalize existing data to lowercase
+        "UPDATE installations SET status = LOWER(status) WHERE status IS NOT NULL;",
+        "UPDATE installations SET payment_status = LOWER(payment_status) WHERE payment_status IS NOT NULL;",
+        "UPDATE installations SET payment_method = LOWER(payment_method) WHERE payment_method IS NOT NULL;",
+        "UPDATE leads SET status = LOWER(status) WHERE status IS NOT NULL;",
+        "UPDATE leads SET source = LOWER(source) WHERE source IS NOT NULL;",
     ]
     
     with engine.connect() as conn:
