@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List } from 'lucide-react';
+import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List, Pencil, Trash2 } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -77,6 +77,14 @@ export default function CustomersPage() {
   // Products and technicians for installation creation
   const [products, setProducts] = useState<Product[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+
+  // Edit mode
+  const [editingCustomer, setEditingCustomer] = useState<CustomerWithInstallation | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Delete confirmation
+  const [deletingCustomer, setDeletingCustomer] = useState<CustomerWithInstallation | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -196,15 +204,76 @@ export default function CustomersPage() {
     }
   };
 
-  // Calculate final price
+  // Calculate final price (using integers to avoid floating point issues)
   const selectedProduct = products.find(p => p.id === parseInt(formData.product_id));
-  const basePrice = selectedProduct?.installation_price || 0;
-  const adjustment = parseFloat(formData.price_adjustment) || 0;
+  const basePrice = Math.round(Number(selectedProduct?.installation_price) || 0);
+  const adjustment = parseInt(formData.price_adjustment.replace(/[^0-9-]/g, '')) || 0;
   const finalPrice = basePrice + adjustment;
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setFormData(initialFormData);
+    setEditingCustomer(null);
+    setIsEditMode(false);
+  };
+
+  // Open edit modal
+  const handleEditCustomer = async (customer: CustomerWithInstallation) => {
+    setEditingCustomer(customer);
+    setIsEditMode(true);
+
+    // Fetch products and technicians
+    try {
+      const [productsData, techniciansData] = await Promise.all([
+        productsApi.getAll(),
+        techniciansApi.getAvailable(),
+      ]);
+      setProducts(productsData);
+      setTechnicians(techniciansData);
+
+      // Calculate adjustment from stored price vs product price
+      const product = productsData.find((p: Product) => p.id === customer.installation.product_id);
+      const storedPrice = Number(customer.installation.total_price) || 0;
+      const productPrice = Number(product?.installation_price) || 0;
+      const calculatedAdjustment = storedPrice - productPrice;
+
+      setFormData({
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        notes: customer.notes || '',
+        product_id: customer.installation.product_id?.toString() || '',
+        technician_id: customer.installation.technician_id?.toString() || '',
+        scheduled_date: customer.installation.scheduled_date || '',
+        scheduled_time: customer.installation.scheduled_time || '',
+        price_adjustment: calculatedAdjustment.toString(),
+      });
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching data for edit:', error);
+    }
+  };
+
+  // Delete customer (lead + installation)
+  const handleDeleteCustomer = async () => {
+    if (!deletingCustomer) return;
+    setDeleting(true);
+
+    try {
+      // Delete installation first
+      await installationsApi.delete(deletingCustomer.installation.id);
+      // Then delete lead
+      await leadsApi.delete(deletingCustomer.id);
+
+      setDeletingCustomer(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -217,26 +286,23 @@ export default function CustomersPage() {
     setSaving(true);
 
     try {
-      // 1. Create the lead first
-      const lead = await leadsApi.create({
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email || undefined,
-        address: formData.address || undefined,
-        city: formData.city || undefined,
-        notes: formData.notes || undefined,
-        product_interest: selectedProduct?.name || undefined,
-        status: 'nuevo',
-        source: 'otro',
-      });
+      if (isEditMode && editingCustomer) {
+        // UPDATE MODE
+        // 1. Update lead
+        await leadsApi.update(editingCustomer.id, {
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email || undefined,
+          address: formData.address || undefined,
+          city: formData.city || undefined,
+          notes: formData.notes || undefined,
+          product_interest: selectedProduct?.name || undefined,
+        });
 
-      // 2. Create the installation if product is selected
-      if (formData.product_id && lead.id) {
-        await installationsApi.create({
-          lead_id: lead.id,
+        // 2. Update installation
+        await installationsApi.update(editingCustomer.installation.id, {
           product_id: parseInt(formData.product_id),
-          technician_id: formData.technician_id ? parseInt(formData.technician_id) : undefined,
-          quantity: 1,
+          technician_id: formData.technician_id ? parseInt(formData.technician_id) : null,
           scheduled_date: formData.scheduled_date || undefined,
           scheduled_time: formData.scheduled_time || undefined,
           address: formData.address || 'Por confirmar',
@@ -244,12 +310,42 @@ export default function CustomersPage() {
           total_price: finalPrice,
           customer_notes: formData.notes || undefined,
         });
+      } else {
+        // CREATE MODE
+        // 1. Create the lead first
+        const lead = await leadsApi.create({
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email || undefined,
+          address: formData.address || undefined,
+          city: formData.city || undefined,
+          notes: formData.notes || undefined,
+          product_interest: selectedProduct?.name || undefined,
+          status: 'nuevo',
+          source: 'otro',
+        });
+
+        // 2. Create the installation if product is selected
+        if (formData.product_id && lead.id) {
+          await installationsApi.create({
+            lead_id: lead.id,
+            product_id: parseInt(formData.product_id),
+            technician_id: formData.technician_id ? parseInt(formData.technician_id) : undefined,
+            quantity: 1,
+            scheduled_date: formData.scheduled_date || undefined,
+            scheduled_time: formData.scheduled_time || undefined,
+            address: formData.address || 'Por confirmar',
+            city: formData.city || undefined,
+            total_price: finalPrice,
+            customer_notes: formData.notes || undefined,
+          });
+        }
       }
 
       handleCloseModal();
       fetchData();
     } catch (error) {
-      console.error('Error creating customer:', error);
+      console.error('Error saving customer:', error);
     } finally {
       setSaving(false);
     }
@@ -446,7 +542,7 @@ export default function CustomersPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={() => callPhone(customer.phone)}
                             className="p-1.5 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
@@ -470,6 +566,20 @@ export default function CustomersPage() {
                               <MapPin className="w-4 h-4" />
                             </button>
                           )}
+                          <button
+                            onClick={() => handleEditCustomer(customer)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingCustomer(customer)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -565,6 +675,20 @@ export default function CustomersPage() {
                   >
                     WhatsApp
                   </button>
+                  <button
+                    onClick={() => handleEditCustomer(customer)}
+                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                    title="Editar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeletingCustomer(customer)}
+                    className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -572,12 +696,12 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Modal for manual customer creation */}
+      {/* Modal for customer creation/edit */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title="Nuevo Cliente"
-        subtitle="Agregar cliente manualmente"
+        title={isEditMode ? "Editar Cliente" : "Nuevo Cliente"}
+        subtitle={isEditMode ? "Modificar datos del cliente" : "Agregar cliente manualmente"}
         footer={
           <>
             <button
@@ -591,7 +715,7 @@ export default function CustomersPage() {
               disabled={saving || !formData.name || !formData.phone || !formData.product_id}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : 'Crear Cliente'}
+              {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Cliente'}
             </button>
           </>
         }
@@ -806,6 +930,43 @@ export default function CustomersPage() {
             />
           </div>
         </form>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!deletingCustomer}
+        onClose={() => setDeletingCustomer(null)}
+        title="Eliminar Cliente"
+        subtitle="Esta acción no se puede deshacer"
+        footer={
+          <>
+            <button
+              onClick={() => setDeletingCustomer(null)}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleDeleteCustomer}
+              disabled={deleting}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </>
+        }
+      >
+        <div className="text-center py-4">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Trash2 className="w-8 h-8 text-red-500" />
+          </div>
+          <p className="text-gray-700 mb-2">
+            ¿Estás seguro que deseas eliminar a <strong>{deletingCustomer?.name}</strong>?
+          </p>
+          <p className="text-sm text-gray-500">
+            Se eliminará el cliente y su instalación asociada (#{deletingCustomer?.installation.id}).
+          </p>
+        </div>
       </Modal>
     </div>
   );
