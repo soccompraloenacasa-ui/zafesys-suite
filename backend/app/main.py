@@ -128,6 +128,14 @@ def run_migrations():
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_before TEXT;",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_after TEXT;",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS video_url VARCHAR(500);",
+
+        # Convert enum columns to VARCHAR (fixes PostgreSQL native enum issues)
+        # These will fail silently if already VARCHAR
+        "ALTER TABLE installations ALTER COLUMN status TYPE VARCHAR(30) USING status::text;",
+        "ALTER TABLE installations ALTER COLUMN payment_status TYPE VARCHAR(30) USING payment_status::text;",
+        "ALTER TABLE installations ALTER COLUMN payment_method TYPE VARCHAR(30) USING payment_method::text;",
+        "ALTER TABLE leads ALTER COLUMN status TYPE VARCHAR(30) USING status::text;",
+        "ALTER TABLE leads ALTER COLUMN source TYPE VARCHAR(30) USING source::text;",
     ]
     
     with engine.connect() as conn:
