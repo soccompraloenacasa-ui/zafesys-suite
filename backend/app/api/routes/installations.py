@@ -26,7 +26,7 @@ class AppTimerStartRequest(BaseModel):
     started_by: str = "technician"
 
 
-@router.get("/app/{installation_id}", response_model=InstallationResponse)
+@router.get("/app/{installation_id}")
 def get_installation_for_app(
     installation_id: int,
     db: Session = Depends(get_db)
@@ -34,14 +34,66 @@ def get_installation_for_app(
     """
     PUBLIC ENDPOINT - Get installation detail for technician app.
     No authentication required.
+    Returns installation with lead and product details.
     """
+    from app.models import Lead, Product, Technician
+
     installation = crud.installation.get(db, id=installation_id)
     if not installation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Installation not found"
         )
-    return installation
+
+    # Build response with related data
+    data = {
+        "id": installation.id,
+        "lead_id": installation.lead_id,
+        "product_id": installation.product_id,
+        "quantity": installation.quantity,
+        "address": installation.address,
+        "city": installation.city,
+        "address_notes": installation.address_notes,
+        "total_price": installation.total_price,
+        "customer_notes": installation.customer_notes,
+        "technician_id": installation.technician_id,
+        "scheduled_date": installation.scheduled_date,
+        "scheduled_time": installation.scheduled_time,
+        "estimated_duration": installation.estimated_duration or 60,
+        "status": installation.status,
+        "payment_status": installation.payment_status,
+        "payment_method": installation.payment_method,
+        "amount_paid": installation.amount_paid or 0,
+        "technician_notes": installation.technician_notes,
+        "completed_at": installation.completed_at,
+        "timer_started_at": installation.timer_started_at,
+        "timer_ended_at": installation.timer_ended_at,
+        "timer_started_by": installation.timer_started_by,
+        "installation_duration_minutes": installation.installation_duration_minutes,
+        "created_at": installation.created_at,
+        "updated_at": installation.updated_at,
+    }
+
+    # Get lead data
+    lead = db.query(Lead).filter(Lead.id == installation.lead_id).first()
+    if lead:
+        data["lead_name"] = lead.name
+        data["lead_phone"] = lead.phone
+
+    # Get product data
+    product = db.query(Product).filter(Product.id == installation.product_id).first()
+    if product:
+        data["product_name"] = product.name
+        data["product_model"] = product.model
+        data["product_image"] = product.image_url
+
+    # Get technician name
+    if installation.technician_id:
+        tech = db.query(Technician).filter(Technician.id == installation.technician_id).first()
+        if tech:
+            data["technician_name"] = tech.full_name
+
+    return data
 
 
 @router.post("/app/{installation_id}/timer/start", response_model=TimerResponse)

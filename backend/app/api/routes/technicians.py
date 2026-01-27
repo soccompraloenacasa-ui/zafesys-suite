@@ -40,7 +40,7 @@ def get_technicians_for_app(
     return technicians
 
 
-@router.get("/app/{technician_id}/installations", response_model=List[InstallationResponse])
+@router.get("/app/{technician_id}/installations")
 def get_technician_installations_for_app(
     technician_id: int,
     db: Session = Depends(get_db),
@@ -49,23 +49,78 @@ def get_technician_installations_for_app(
     """
     PUBLIC ENDPOINT - Get technician's installations for a specific date.
     No authentication required (for technician app).
+    Returns installations with lead and product details.
     """
     from app.core.timezone import today_colombia
-    
+    from app.models import Lead, Product, Technician as TechnicianModel
+
     technician = crud.technician.get(db, id=technician_id)
     if not technician:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Technician not found"
         )
-    
+
     if target_date is None:
         target_date = today_colombia()
-    
+
     installations = crud.installation.get_by_date(
         db, target_date=target_date, technician_id=technician_id
     )
-    return installations
+
+    # Enrich with lead and product data
+    result = []
+    for inst in installations:
+        data = {
+            "id": inst.id,
+            "lead_id": inst.lead_id,
+            "product_id": inst.product_id,
+            "quantity": inst.quantity,
+            "address": inst.address,
+            "city": inst.city,
+            "address_notes": inst.address_notes,
+            "total_price": inst.total_price,
+            "customer_notes": inst.customer_notes,
+            "technician_id": inst.technician_id,
+            "scheduled_date": inst.scheduled_date,
+            "scheduled_time": inst.scheduled_time,
+            "estimated_duration": inst.estimated_duration or 60,
+            "status": inst.status,
+            "payment_status": inst.payment_status,
+            "payment_method": inst.payment_method,
+            "amount_paid": inst.amount_paid or 0,
+            "technician_notes": inst.technician_notes,
+            "completed_at": inst.completed_at,
+            "timer_started_at": inst.timer_started_at,
+            "timer_ended_at": inst.timer_ended_at,
+            "timer_started_by": inst.timer_started_by,
+            "installation_duration_minutes": inst.installation_duration_minutes,
+            "created_at": inst.created_at,
+            "updated_at": inst.updated_at,
+        }
+
+        # Get lead data
+        lead = db.query(Lead).filter(Lead.id == inst.lead_id).first()
+        if lead:
+            data["lead_name"] = lead.name
+            data["lead_phone"] = lead.phone
+
+        # Get product data
+        product = db.query(Product).filter(Product.id == inst.product_id).first()
+        if product:
+            data["product_name"] = product.name
+            data["product_model"] = product.model
+            data["product_image"] = product.image_url
+
+        # Get technician name
+        if inst.technician_id:
+            tech = db.query(TechnicianModel).filter(TechnicianModel.id == inst.technician_id).first()
+            if tech:
+                data["technician_name"] = tech.full_name
+
+        result.append(data)
+
+    return result
 
 
 # ============== AUTHENTICATED ENDPOINTS ==============

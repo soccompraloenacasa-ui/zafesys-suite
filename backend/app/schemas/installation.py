@@ -121,8 +121,48 @@ class InstallationWithDetails(InstallationResponse):
     lead_phone: Optional[str] = None
     product_name: Optional[str] = None
     product_model: Optional[str] = None
+    product_image: Optional[str] = None
     technician_name: Optional[str] = None
     technician_phone: Optional[str] = None
+
+
+class InstallationAppResponse(BaseModel):
+    """Response for technician app with lead and product details."""
+    id: int
+    lead_id: int
+    product_id: int
+    quantity: int
+    address: str
+    city: Optional[str] = None
+    address_notes: Optional[str] = None
+    total_price: Decimal
+    customer_notes: Optional[str] = None
+    technician_id: Optional[int] = None
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[time] = None
+    estimated_duration: int = 60
+    status: InstallationStatus
+    payment_status: PaymentStatus
+    payment_method: Optional[PaymentMethod] = None
+    amount_paid: Decimal = Decimal("0")
+    technician_notes: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    timer_started_at: Optional[datetime] = None
+    timer_ended_at: Optional[datetime] = None
+    timer_started_by: Optional[str] = None
+    installation_duration_minutes: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    # Related data
+    lead_name: Optional[str] = None
+    lead_phone: Optional[str] = None
+    product_name: Optional[str] = None
+    product_model: Optional[str] = None
+    product_image: Optional[str] = None
+    technician_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 class TechnicianDaySchedule(BaseModel):

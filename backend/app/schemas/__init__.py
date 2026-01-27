@@ -20,7 +20,8 @@ from app.schemas.technician import (
 from app.schemas.installation import (
     InstallationBase, InstallationCreate, InstallationUpdate,
     InstallationResponse, InstallationStatusUpdate, InstallationPaymentUpdate,
-    InstallationCompleteRequest, InstallationWithDetails, TechnicianDaySchedule
+    InstallationCompleteRequest, InstallationWithDetails, TechnicianDaySchedule,
+    InstallationAppResponse
 )
 from app.schemas.customer import (
     CustomerBase, CustomerCreate, CustomerUpdate,
@@ -50,6 +51,7 @@ __all__ = [
     "InstallationBase", "InstallationCreate", "InstallationUpdate",
     "InstallationResponse", "InstallationStatusUpdate", "InstallationPaymentUpdate",
     "InstallationCompleteRequest", "InstallationWithDetails", "TechnicianDaySchedule",
+    "InstallationAppResponse",
     # Customer
     "CustomerBase", "CustomerCreate", "CustomerUpdate",
     "CustomerResponse", "CustomerListResponse",
