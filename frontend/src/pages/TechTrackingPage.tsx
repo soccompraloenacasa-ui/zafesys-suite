@@ -202,11 +202,32 @@ export default function TechTrackingPage() {
             <iframe
               title="Mapa de técnicos"
               className="w-full h-full border-0"
-              src={`https://www.google.com/maps/embed/v1/view?key=AIzaSyBFw0Qbyq9zTFTd-tUY6CE_UcUG9C3LLA4&center=${locations[0]?.latitude || DEFAULT_CENTER.lat},${locations[0]?.longitude || DEFAULT_CENTER.lng}&zoom=12&maptype=roadmap`}
+              src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6CE_UcUG9C3LLA4&q=${locations.map(l => `${l.latitude},${l.longitude}`).join('|')}&center=${locations[0]?.latitude || DEFAULT_CENTER.lat},${locations[0]?.longitude || DEFAULT_CENTER.lng}&zoom=12`}
               allowFullScreen
             />
           )}
-          
+
+          {/* Quick links to each technician */}
+          {!loading && locations.length > 0 && (
+            <div className="absolute top-4 right-4 bg-white/95 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
+              <div className="p-2 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-600">Ver en mapa</p>
+              </div>
+              <div className="p-1">
+                {locations.map((tech) => (
+                  <button
+                    key={tech.technician_id}
+                    onClick={() => openInMaps(tech.latitude, tech.longitude)}
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded text-left text-sm"
+                  >
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(tech.minutes_ago)}`} />
+                    <span className="truncate">{tech.technician_name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Map legend overlay */}
           <div className="absolute bottom-4 left-4 bg-white/95 rounded-lg p-3 shadow-lg text-sm">
             <p className="font-semibold mb-2">Estado</p>
