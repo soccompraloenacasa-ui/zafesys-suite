@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List } from 'lucide-react';
-import { installationsApi, leadsApi } from '../services/api';
-import type { Installation, Lead } from '../types';
+import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
+import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
 import { CITIES } from '../constants/cities';
+import { getColombiaDate } from '../utils/timezone';
 
 // Installation status labels with colors
 const installationStatusLabels: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -39,6 +40,12 @@ interface CustomerFormData {
   address: string;
   city: string;
   notes: string;
+  // Installation fields
+  product_id: string;
+  technician_id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  price_adjustment: string; // Can be positive (aumento) or negative (descuento)
 }
 
 const initialFormData: CustomerFormData = {
@@ -48,6 +55,11 @@ const initialFormData: CustomerFormData = {
   address: '',
   city: '',
   notes: '',
+  product_id: '',
+  technician_id: '',
+  scheduled_date: '',
+  scheduled_time: '',
+  price_adjustment: '0',
 };
 
 export default function CustomersPage() {
@@ -61,6 +73,10 @@ export default function CustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
+
+  // Products and technicians for installation creation
+  const [products, setProducts] = useState<Product[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
 
   const fetchData = async () => {
     try {
@@ -160,10 +176,31 @@ export default function CustomersPage() {
   };
 
   // Modal handlers
-  const handleOpenModal = () => {
-    setFormData(initialFormData);
+  const handleOpenModal = async () => {
+    setFormData({
+      ...initialFormData,
+      scheduled_date: getColombiaDate().toISOString().split('T')[0], // Today in Colombia
+    });
     setIsModalOpen(true);
+
+    // Fetch products and technicians
+    try {
+      const [productsData, techniciansData] = await Promise.all([
+        productsApi.getAll(),
+        techniciansApi.getAvailable(),
+      ]);
+      setProducts(productsData);
+      setTechnicians(techniciansData);
+    } catch (error) {
+      console.error('Error fetching data for modal:', error);
+    }
   };
+
+  // Calculate final price
+  const selectedProduct = products.find(p => p.id === parseInt(formData.product_id));
+  const basePrice = selectedProduct?.installation_price || 0;
+  const adjustment = parseFloat(formData.price_adjustment) || 0;
+  const finalPrice = basePrice + adjustment;
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -180,17 +217,34 @@ export default function CustomersPage() {
     setSaving(true);
 
     try {
-      // Create a new lead with the customer data
-      await leadsApi.create({
+      // 1. Create the lead first
+      const lead = await leadsApi.create({
         name: formData.name,
         phone: formData.phone,
         email: formData.email || undefined,
         address: formData.address || undefined,
         city: formData.city || undefined,
         notes: formData.notes || undefined,
+        product_interest: selectedProduct?.name || undefined,
         status: 'nuevo',
         source: 'otro',
       });
+
+      // 2. Create the installation if product is selected
+      if (formData.product_id && lead.id) {
+        await installationsApi.create({
+          lead_id: lead.id,
+          product_id: parseInt(formData.product_id),
+          technician_id: formData.technician_id ? parseInt(formData.technician_id) : undefined,
+          quantity: 1,
+          scheduled_date: formData.scheduled_date || undefined,
+          scheduled_time: formData.scheduled_time || undefined,
+          address: formData.address || 'Por confirmar',
+          city: formData.city || undefined,
+          total_price: finalPrice,
+          customer_notes: formData.notes || undefined,
+        });
+      }
 
       handleCloseModal();
       fetchData();
@@ -534,7 +588,7 @@ export default function CustomersPage() {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={saving || !formData.name || !formData.phone}
+              disabled={saving || !formData.name || !formData.phone || !formData.product_id}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Guardando...' : 'Crear Cliente'}
@@ -543,12 +597,7 @@ export default function CustomersPage() {
         }
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-amber-700">
-              <strong>Nota:</strong> Este cliente se creará como un Lead. Para que aparezca en esta lista con estado de instalación, debes crear una instalación desde la pestaña <strong>Instalaciones</strong>.
-            </p>
-          </div>
-
+          {/* Datos del cliente */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -627,6 +676,119 @@ export default function CustomersPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Separador - Datos de instalación */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Producto e Instalación
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Producto *
+                </label>
+                <select
+                  name="product_id"
+                  value={formData.product_id}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                  required
+                >
+                  <option value="">Seleccionar producto...</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} - ${product.installation_price?.toLocaleString('es-CO')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Técnico
+                </label>
+                <select
+                  name="technician_id"
+                  value={formData.technician_id}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                >
+                  <option value="">Sin asignar</option>
+                  {technicians.map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha
+                </label>
+                <input
+                  type="date"
+                  name="scheduled_date"
+                  value={formData.scheduled_date}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hora
+                </label>
+                <input
+                  type="time"
+                  name="scheduled_time"
+                  value={formData.scheduled_time}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Precio y ajuste */}
+            <div className="grid grid-cols-3 gap-4 mt-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio base
+                </label>
+                <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
+                  ${basePrice.toLocaleString('es-CO')}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ajuste (+/-)
+                </label>
+                <input
+                  type="number"
+                  name="price_adjustment"
+                  value={formData.price_adjustment}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Negativo = descuento</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio final
+                </label>
+                <div className={`px-3 py-2 border rounded-lg font-semibold ${adjustment < 0 ? 'bg-green-50 border-green-300 text-green-700' : adjustment > 0 ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-cyan-50 border-cyan-300 text-cyan-700'}`}>
+                  ${finalPrice.toLocaleString('es-CO')}
+                </div>
+              </div>
             </div>
           </div>
 
