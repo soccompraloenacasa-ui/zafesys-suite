@@ -1,6 +1,6 @@
 """
 Cloudflare R2 Storage Service
-Handles presigned URL generation for photo/signature uploads
+Handles presigned URL generation for photo/signature/video uploads
 """
 import boto3
 from botocore.config import Config
@@ -40,7 +40,7 @@ class R2StorageService:
         
         Args:
             installation_id: Installation ID
-            file_type: One of 'foto_antes', 'foto_despues', 'firma'
+            file_type: One of 'foto_antes', 'foto_despues', 'firma', 'video'
             client_name: Client name for folder organization
         
         Returns:
@@ -56,11 +56,15 @@ class R2StorageService:
         # Generate unique file ID
         file_id = uuid.uuid4().hex[:8]
         
-        # Determine extension and content type
+        # Determine extension and content type based on file_type
         if file_type == 'firma':
             extension = 'png'
             content_type = 'image/png'
+        elif file_type == 'video':
+            extension = 'mp4'
+            content_type = 'video/mp4'
         else:
+            # foto_antes, foto_despues
             extension = 'jpg'
             content_type = 'image/jpeg'
         
