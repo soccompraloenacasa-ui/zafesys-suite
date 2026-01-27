@@ -101,3 +101,15 @@ def get_r2_service() -> R2StorageService:
     if _r2_service is None:
         _r2_service = R2StorageService()
     return _r2_service
+
+
+# Lazy singleton for backward compatibility
+class _LazyR2Storage:
+    _instance = None
+
+    def __getattr__(self, name):
+        if _LazyR2Storage._instance is None:
+            _LazyR2Storage._instance = R2StorageService()
+        return getattr(_LazyR2Storage._instance, name)
+
+r2_storage = _LazyR2Storage()
