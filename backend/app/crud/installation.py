@@ -72,8 +72,8 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
                 Installation.technician_id == technician_id,
                 Installation.scheduled_date == target_date,
                 Installation.status.notin_([
-                    InstallationStatus.CANCELADA,
-                    InstallationStatus.COMPLETADA
+                    InstallationStatus.CANCELADA.value,
+                    InstallationStatus.COMPLETADA.value
                 ])
             )
             .order_by(Installation.scheduled_time)
@@ -84,7 +84,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         """Get installations pending scheduling."""
         return (
             db.query(Installation)
-            .filter(Installation.status == InstallationStatus.PENDIENTE)
+            .filter(Installation.status == InstallationStatus.PENDIENTE.value)
             .order_by(Installation.created_at)
             .all()
         )
@@ -100,7 +100,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         """Get installations by status."""
         return (
             db.query(Installation)
-            .filter(Installation.status == status)
+            .filter(Installation.status == status.value)
             .order_by(Installation.scheduled_date.desc())
             .offset(skip)
             .limit(limit)
@@ -115,7 +115,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         status: InstallationStatus
     ) -> Installation:
         """Update installation status."""
-        db_obj.status = status
+        db_obj.status = status.value
         if status == InstallationStatus.COMPLETADA:
             db_obj.completed_at = now_colombia()
         db.add(db_obj)
@@ -133,7 +133,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         amount_paid: Optional[float] = None
     ) -> Installation:
         """Update installation payment info."""
-        db_obj.payment_status = payment_status
+        db_obj.payment_status = payment_status.value
         if payment_method:
             db_obj.payment_method = payment_method
         if amount_paid is not None:
@@ -152,7 +152,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         photo_proof_url: Optional[str] = None
     ) -> Installation:
         """Mark installation as completed."""
-        db_obj.status = InstallationStatus.COMPLETADA
+        db_obj.status = InstallationStatus.COMPLETADA.value
         db_obj.completed_at = now_colombia()
         if technician_notes:
             db_obj.technician_notes = technician_notes
@@ -182,8 +182,8 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
             db_obj.timer_started_by = started_by
             db_obj.installation_duration_minutes = None  # Reset duration
             # Also update status to EN_PROGRESO if not already
-            if db_obj.status not in [InstallationStatus.EN_PROGRESO, InstallationStatus.COMPLETADA]:
-                db_obj.status = InstallationStatus.EN_PROGRESO
+            if db_obj.status not in [InstallationStatus.EN_PROGRESO.value, InstallationStatus.COMPLETADA.value]:
+                db_obj.status = InstallationStatus.EN_PROGRESO.value
             db.add(db_obj)
             db.commit()
             db.refresh(db_obj)
@@ -253,7 +253,7 @@ class CRUDInstallation(CRUDBase[Installation, InstallationCreate, InstallationUp
         for status in InstallationStatus:
             counts[status.value] = (
                 db.query(Installation)
-                .filter(Installation.status == status)
+                .filter(Installation.status == status.value)
                 .count()
             )
         return counts

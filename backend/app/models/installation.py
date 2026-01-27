@@ -68,24 +68,12 @@ class Installation(Base):
     address_notes = Column(Text, nullable=True)  # e.g., "Apartamento 302, edificio azul"
 
     # Status
-    status = Column(
-        SQLEnum(InstallationStatus, values_callable=lambda x: [e.value for e in x]),
-        default=InstallationStatus.PENDIENTE,
-        nullable=False,
-        index=True
-    )
+    status = Column(String(30), default="pendiente", nullable=False, index=True)
 
     # Payment
     total_price = Column(Numeric(10, 2), nullable=False)
-    payment_status = Column(
-        SQLEnum(PaymentStatus, values_callable=lambda x: [e.value for e in x]),
-        default=PaymentStatus.PENDIENTE,
-        nullable=False
-    )
-    payment_method = Column(
-        SQLEnum(PaymentMethod, values_callable=lambda x: [e.value for e in x]),
-        nullable=True
-    )
+    payment_status = Column(String(30), default="pendiente", nullable=False)
+    payment_method = Column(String(30), nullable=True)
     amount_paid = Column(Numeric(10, 2), default=0)
 
     # Notes

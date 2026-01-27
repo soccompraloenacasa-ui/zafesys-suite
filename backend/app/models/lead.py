@@ -40,17 +40,8 @@ class Lead(Base):
     city = Column(String(100), nullable=True)
 
     # Lead info
-    status = Column(
-        SQLEnum(LeadStatus, values_callable=lambda x: [e.value for e in x]),
-        default=LeadStatus.NUEVO,
-        nullable=False,
-        index=True
-    )
-    source = Column(
-        SQLEnum(LeadSource, values_callable=lambda x: [e.value for e in x]),
-        default=LeadSource.WEBSITE,
-        nullable=False
-    )
+    status = Column(String(30), default="nuevo", nullable=False, index=True)
+    source = Column(String(30), default="website", nullable=False)
     notes = Column(Text, nullable=True)
 
     # Product interest

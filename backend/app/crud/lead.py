@@ -27,7 +27,7 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
         """Get leads by status."""
         return (
             db.query(Lead)
-            .filter(Lead.status == status)
+            .filter(Lead.status == status.value)
             .order_by(Lead.created_at.desc())
             .offset(skip)
             .limit(limit)
@@ -39,7 +39,7 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
         leads = db.query(Lead).order_by(Lead.created_at.desc()).all()
         kanban = {status.value: [] for status in LeadStatus}
         for lead in leads:
-            kanban[lead.status.value].append(lead)
+            kanban[lead.status].append(lead)
         return kanban
 
     def update_status(
@@ -50,7 +50,7 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
         status: LeadStatus
     ) -> Lead:
         """Update lead status."""
-        db_obj.status = status
+        db_obj.status = status.value
         if status == LeadStatus.EN_CONVERSACION and not db_obj.contacted_at:
             db_obj.contacted_at = datetime.utcnow()
         db.add(db_obj)
@@ -92,12 +92,12 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
             phone=phone,
             email=email,
             address=address,
-            source=source,
+            source=source.value,
             product_interest=product_interest,
             elevenlabs_conversation_id=conversation_id,
             conversation_transcript=transcript,
             notes=notes,
-            status=status,
+            status=status.value,
         )
         db.add(db_obj)
         db.commit()
@@ -110,7 +110,7 @@ class CRUDLead(CRUDBase[Lead, LeadCreate, LeadUpdate]):
         for status in LeadStatus:
             counts[status.value] = (
                 db.query(Lead)
-                .filter(Lead.status == status)
+                .filter(Lead.status == status.value)
                 .count()
             )
         return counts
