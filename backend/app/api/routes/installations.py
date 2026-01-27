@@ -92,6 +92,7 @@ def get_installation_for_app(
         "signature_url": installation.signature_url,
         "photos_before": photos_before,
         "photos_after": photos_after,
+        "video_url": installation.video_url,
     }
 
     # Get lead data
@@ -230,7 +231,7 @@ def update_status_for_app(
 
 class UploadUrlRequest(BaseModel):
     """Request for generating upload URL."""
-    file_type: str  # foto_antes, foto_despues, firma
+    file_type: str  # foto_antes, foto_despues, firma, video
     client_name: str = "cliente"
 
 
@@ -247,6 +248,7 @@ class SaveMediaRequest(BaseModel):
     signature_url: str | None = None
     photos_before: list[str] | None = None
     photos_after: list[str] | None = None
+    video_url: str | None = None
 
 
 @router.post("/app/{installation_id}/upload-url", response_model=UploadUrlResponse)
@@ -269,7 +271,7 @@ def get_upload_url_for_app(
             detail="Installation not found"
         )
 
-    valid_types = ['foto_antes', 'foto_despues', 'firma']
+    valid_types = ['foto_antes', 'foto_despues', 'firma', 'video']
     if request.file_type not in valid_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -335,6 +337,10 @@ def save_media_for_app(
                 pass
         existing.extend(request.photos_after)
         installation.photos_after = json.dumps(existing)
+
+    # Update video_url
+    if request.video_url is not None:
+        installation.video_url = request.video_url
 
     db.add(installation)
     db.commit()

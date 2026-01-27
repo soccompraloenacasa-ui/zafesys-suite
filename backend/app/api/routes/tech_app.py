@@ -248,7 +248,7 @@ def get_my_installations(technician_id: int, target_date: Optional[date] = None,
             signature_url=inst.signature_url,
             photos_before=parse_photos_json(inst.photos_before),
             photos_after=parse_photos_json(inst.photos_after),
-            video_url=getattr(inst, 'video_url', None)
+            video_url=inst.video_url
         ))
 
     return result
@@ -288,7 +288,7 @@ def get_installation_detail(installation_id: int, technician_id: int, db: Sessio
         signature_url=installation.signature_url,
         photos_before=parse_photos_json(installation.photos_before),
         photos_after=parse_photos_json(installation.photos_after),
-        video_url=getattr(installation, 'video_url', None)
+        video_url=installation.video_url
     )
 
 

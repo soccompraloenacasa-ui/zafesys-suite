@@ -92,7 +92,7 @@ class Installation(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     photo_proof_url = Column(String(500), nullable=True)  # Photo of installed lock
 
-    # Media - Photos, Video and Signature
+    # Media - Photos, Signature, Video
     signature_url = Column(String(500), nullable=True)  # Customer signature
     photos_before = Column(Text, nullable=True)  # JSON array of photo URLs before installation
     photos_after = Column(Text, nullable=True)   # JSON array of photo URLs after installation

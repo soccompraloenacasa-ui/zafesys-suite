@@ -42,7 +42,7 @@ class R2StorageService:
             installation_id: Installation ID
             file_type: One of 'foto_antes', 'foto_despues', 'firma', 'video'
             client_name: Client name for folder organization
-        
+
         Returns:
             dict with 'upload_url', 'public_url', 'key'
         """
