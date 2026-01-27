@@ -13,7 +13,7 @@ import {
   History,
   X,
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { techApi, type TechnicianLocation, type LocationHistory } from '../services/api';
@@ -73,6 +73,64 @@ function FitBounds({ locations }: { locations: TechnicianLocation[] }) {
   return null;
 }
 
+// Component to fit map bounds to route history
+function FitBoundsRoute({ history }: { history: LocationHistory[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (history.length > 0) {
+      const bounds = L.latLngBounds(
+        history.map(l => [l.latitude, l.longitude] as [number, number])
+      );
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    }
+  }, [history, map]);
+
+  return null;
+}
+
+// Start marker icon (green flag)
+const startIcon = L.divIcon({
+  className: 'custom-marker',
+  html: `<div style="
+    background-color: #22c55e;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+  ">1</div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+
+// End marker icon (red flag)
+const endIcon = L.divIcon({
+  className: 'custom-marker',
+  html: `<div style="
+    background-color: #ef4444;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+  ">F</div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+
 export default function TechTrackingPage() {
   const [locations, setLocations] = useState<TechnicianLocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +140,13 @@ export default function TechTrackingPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [locationHistory, setLocationHistory] = useState<LocationHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Route view state
+  const [showRouteView, setShowRouteView] = useState(false);
+  const [routeTechId, setRouteTechId] = useState<string>('');
+  const [routeDate, setRouteDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [routeHistory, setRouteHistory] = useState<LocationHistory[]>([]);
+  const [loadingRoute, setLoadingRoute] = useState(false);
 
   const fetchLocations = useCallback(async () => {
     try {
@@ -114,7 +179,7 @@ export default function TechTrackingPage() {
     setSelectedTech(tech);
     setShowHistory(true);
     setLoadingHistory(true);
-    
+
     try {
       const today = new Date().toISOString().split('T')[0];
       const history = await techApi.getLocationHistory(tech.technician_id, today);
@@ -123,6 +188,31 @@ export default function TechTrackingPage() {
       console.error('Error fetching history:', error);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  // Load route for selected technician and date
+  const loadRoute = async () => {
+    if (!routeTechId || !routeDate) return;
+
+    setLoadingRoute(true);
+    try {
+      const history = await techApi.getLocationHistory(parseInt(routeTechId), routeDate, 500);
+      // Reverse to show oldest first (for route drawing)
+      setRouteHistory(history.reverse());
+    } catch (error) {
+      console.error('Error fetching route:', error);
+    } finally {
+      setLoadingRoute(false);
+    }
+  };
+
+  // Toggle route view
+  const toggleRouteView = () => {
+    setShowRouteView(!showRouteView);
+    if (!showRouteView) {
+      setRouteHistory([]);
+      setRouteTechId('');
     }
   };
 
@@ -237,14 +327,152 @@ export default function TechTrackingPage() {
 
       {/* Map */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Mapa en Tiempo Real</h2>
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <h2 className="font-semibold text-gray-900">
+            {showRouteView ? 'Ver Ruta del Día' : 'Mapa en Tiempo Real'}
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleRouteView}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                showRouteView
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {showRouteView ? '← Volver a tiempo real' : '📍 Ver ruta de técnico'}
+            </button>
+          </div>
         </div>
+
+        {/* Route selector */}
+        {showRouteView && (
+          <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Técnico</label>
+              <select
+                value={routeTechId}
+                onChange={(e) => setRouteTechId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 min-w-[200px]"
+              >
+                <option value="">Seleccionar técnico...</option>
+                {locations.map((tech) => (
+                  <option key={tech.technician_id} value={tech.technician_id}>
+                    {tech.technician_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
+              <input
+                type="date"
+                value={routeDate}
+                onChange={(e) => setRouteDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              />
+            </div>
+            <button
+              onClick={loadRoute}
+              disabled={!routeTechId || loadingRoute}
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loadingRoute ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4" />
+                  Ver ruta
+                </>
+              )}
+            </button>
+            {routeHistory.length > 0 && (
+              <span className="text-sm text-gray-500">
+                {routeHistory.length} puntos registrados
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="h-[400px] bg-gray-100 relative">
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
             </div>
+          ) : showRouteView ? (
+            // Route view map
+            routeHistory.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center z-10">
+                <div className="text-center">
+                  <Navigation className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">Selecciona un técnico y fecha</p>
+                  <p className="text-sm text-gray-400">para ver la ruta que recorrió</p>
+                </div>
+              </div>
+            ) : (
+              <MapContainer
+                key="route-map"
+                center={DEFAULT_CENTER}
+                zoom={12}
+                className="h-full w-full"
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <FitBoundsRoute history={routeHistory} />
+                {/* Route line */}
+                <Polyline
+                  positions={routeHistory.map(l => [l.latitude, l.longitude] as [number, number])}
+                  color="#0891b2"
+                  weight={4}
+                  opacity={0.8}
+                />
+                {/* Start marker */}
+                {routeHistory.length > 0 && (
+                  <Marker
+                    position={[routeHistory[0].latitude, routeHistory[0].longitude]}
+                    icon={startIcon}
+                  >
+                    <Popup>
+                      <div className="text-sm">
+                        <p className="font-semibold text-green-600">🚀 Inicio del día</p>
+                        <p className="text-gray-600">
+                          {new Date(routeHistory[0].recorded_at).toLocaleTimeString('es-CO')}
+                        </p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+                {/* End marker */}
+                {routeHistory.length > 1 && (
+                  <Marker
+                    position={[
+                      routeHistory[routeHistory.length - 1].latitude,
+                      routeHistory[routeHistory.length - 1].longitude,
+                    ]}
+                    icon={endIcon}
+                  >
+                    <Popup>
+                      <div className="text-sm">
+                        <p className="font-semibold text-red-600">🏁 Última ubicación</p>
+                        <p className="text-gray-600">
+                          {new Date(routeHistory[routeHistory.length - 1].recorded_at).toLocaleTimeString('es-CO')}
+                        </p>
+                        {routeHistory[routeHistory.length - 1].battery_level !== null && (
+                          <p className="text-gray-500">🔋 {routeHistory[routeHistory.length - 1].battery_level}%</p>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+              </MapContainer>
+            )
           ) : locations.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="text-center">
@@ -254,7 +482,9 @@ export default function TechTrackingPage() {
               </div>
             </div>
           ) : (
+            // Real-time view map
             <MapContainer
+              key="realtime-map"
               center={DEFAULT_CENTER}
               zoom={12}
               className="h-full w-full"
@@ -293,21 +523,43 @@ export default function TechTrackingPage() {
 
           {/* Map legend overlay */}
           <div className="absolute bottom-4 left-4 bg-white/95 rounded-lg p-3 shadow-lg text-sm z-[1000]">
-            <p className="font-semibold mb-2">Estado</p>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Circle className="w-3 h-3 fill-green-500 text-green-500" />
-                <span>En línea (&lt; 5 min)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Circle className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                <span>Reciente (5-15 min)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Circle className="w-3 h-3 fill-red-500 text-red-500" />
-                <span>Sin señal (&gt; 15 min)</span>
-              </div>
-            </div>
+            {showRouteView && routeHistory.length > 0 ? (
+              <>
+                <p className="font-semibold mb-2">Ruta</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-green-500 text-green-500" />
+                    <span>Inicio del día</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-red-500 text-red-500" />
+                    <span>Última ubicación</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-1 bg-cyan-500 rounded" />
+                    <span>Recorrido</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold mb-2">Estado</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-green-500 text-green-500" />
+                    <span>En línea (&lt; 5 min)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                    <span>Reciente (5-15 min)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-red-500 text-red-500" />
+                    <span>Sin señal (&gt; 15 min)</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
