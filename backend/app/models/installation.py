@@ -92,6 +92,11 @@ class Installation(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     photo_proof_url = Column(String(500), nullable=True)  # Photo of installed lock
 
+    # Media - Photos and Signature
+    signature_url = Column(String(500), nullable=True)  # Customer signature
+    photos_before = Column(Text, nullable=True)  # JSON array of photo URLs before installation
+    photos_after = Column(Text, nullable=True)   # JSON array of photo URLs after installation
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

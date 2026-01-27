@@ -153,6 +153,10 @@ class InstallationAppResponse(BaseModel):
     installation_duration_minutes: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # Media
+    signature_url: Optional[str] = None
+    photos_before: Optional[list[str]] = None
+    photos_after: Optional[list[str]] = None
     # Related data
     lead_name: Optional[str] = None
     lead_phone: Optional[str] = None

@@ -122,6 +122,11 @@ def run_migrations():
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_ended_at TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_by VARCHAR(20);",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS installation_duration_minutes INTEGER;",
+
+        # Installation Media columns - photos and signature
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS signature_url VARCHAR(500);",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_before TEXT;",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_after TEXT;",
     ]
     
     with engine.connect() as conn:

@@ -45,6 +45,22 @@ def get_installation_for_app(
             detail="Installation not found"
         )
 
+    import json
+
+    # Parse photos arrays
+    photos_before = None
+    photos_after = None
+    if installation.photos_before:
+        try:
+            photos_before = json.loads(installation.photos_before)
+        except:
+            pass
+    if installation.photos_after:
+        try:
+            photos_after = json.loads(installation.photos_after)
+        except:
+            pass
+
     # Build response with related data
     data = {
         "id": installation.id,
@@ -72,6 +88,10 @@ def get_installation_for_app(
         "installation_duration_minutes": installation.installation_duration_minutes,
         "created_at": installation.created_at,
         "updated_at": installation.updated_at,
+        # Media
+        "signature_url": installation.signature_url,
+        "photos_before": photos_before,
+        "photos_after": photos_after,
     }
 
     # Get lead data
@@ -204,6 +224,123 @@ def update_status_for_app(
             crud.lead.update_status(db, db_obj=lead, status=LeadStatus.INSTALADO)
     
     return installation
+
+
+# ============== MEDIA UPLOAD ENDPOINTS (for technician app) ==============
+
+class UploadUrlRequest(BaseModel):
+    """Request for generating upload URL."""
+    file_type: str  # foto_antes, foto_despues, firma
+    client_name: str = "cliente"
+
+
+class UploadUrlResponse(BaseModel):
+    """Response with presigned upload URL."""
+    upload_url: str
+    public_url: str | None
+    key: str
+    content_type: str
+
+
+class SaveMediaRequest(BaseModel):
+    """Request to save media URLs."""
+    signature_url: str | None = None
+    photos_before: list[str] | None = None
+    photos_after: list[str] | None = None
+
+
+@router.post("/app/{installation_id}/upload-url", response_model=UploadUrlResponse)
+def get_upload_url_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    request: UploadUrlRequest
+):
+    """
+    PUBLIC ENDPOINT - Get presigned URL for uploading media.
+    No authentication required (for technician app).
+    """
+    from app.services.r2_storage import r2_storage
+
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+
+    valid_types = ['foto_antes', 'foto_despues', 'firma']
+    if request.file_type not in valid_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file_type. Must be one of: {valid_types}"
+        )
+
+    try:
+        result = r2_storage.generate_upload_url(
+            installation_id=installation_id,
+            file_type=request.file_type,
+            client_name=request.client_name
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating upload URL: {str(e)}"
+        )
+
+
+@router.post("/app/{installation_id}/save-media")
+def save_media_for_app(
+    installation_id: int,
+    *,
+    db: Session = Depends(get_db),
+    request: SaveMediaRequest
+):
+    """
+    PUBLIC ENDPOINT - Save media URLs after upload.
+    No authentication required (for technician app).
+    """
+    import json
+
+    installation = crud.installation.get(db, id=installation_id)
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Installation not found"
+        )
+
+    # Update signature
+    if request.signature_url is not None:
+        installation.signature_url = request.signature_url
+
+    # Update photos_before (merge with existing)
+    if request.photos_before is not None:
+        existing = []
+        if installation.photos_before:
+            try:
+                existing = json.loads(installation.photos_before)
+            except:
+                pass
+        existing.extend(request.photos_before)
+        installation.photos_before = json.dumps(existing)
+
+    # Update photos_after (merge with existing)
+    if request.photos_after is not None:
+        existing = []
+        if installation.photos_after:
+            try:
+                existing = json.loads(installation.photos_after)
+            except:
+                pass
+        existing.extend(request.photos_after)
+        installation.photos_after = json.dumps(existing)
+
+    db.add(installation)
+    db.commit()
+    db.refresh(installation)
+
+    return {"status": "ok", "message": "Media saved successfully"}
 
 
 # ============== AUTHENTICATED ENDPOINTS ==============
