@@ -13,10 +13,65 @@ import {
   History,
   X,
 } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { techApi, type TechnicianLocation, type LocationHistory } from '../services/api';
 
 // Medellín center as default
-const DEFAULT_CENTER = { lat: 6.2442, lng: -75.5812 };
+const DEFAULT_CENTER: [number, number] = [6.2442, -75.5812];
+
+// Fix for default marker icons in Leaflet with webpack/vite
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// Custom marker icons by status
+const createMarkerIcon = (color: string) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="
+      background-color: ${color};
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    "></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+  });
+};
+
+const greenIcon = createMarkerIcon('#22c55e');
+const yellowIcon = createMarkerIcon('#eab308');
+const redIcon = createMarkerIcon('#ef4444');
+
+const getMarkerIcon = (minutesAgo: number) => {
+  if (minutesAgo <= 5) return greenIcon;
+  if (minutesAgo <= 15) return yellowIcon;
+  return redIcon;
+};
+
+// Component to fit map bounds to markers
+function FitBounds({ locations }: { locations: TechnicianLocation[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (locations.length > 0) {
+      const bounds = L.latLngBounds(
+        locations.map(l => [l.latitude, l.longitude] as [number, number])
+      );
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+    }
+  }, [locations, map]);
+
+  return null;
+}
 
 export default function TechTrackingPage() {
   const [locations, setLocations] = useState<TechnicianLocation[]>([]);
@@ -187,11 +242,11 @@ export default function TechTrackingPage() {
         </div>
         <div className="h-[400px] bg-gray-100 relative">
           {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
             </div>
           ) : locations.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="text-center">
                 <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                 <p className="text-gray-500">No hay ubicaciones registradas</p>
@@ -199,37 +254,45 @@ export default function TechTrackingPage() {
               </div>
             </div>
           ) : (
-            <iframe
-              title="Mapa de técnicos"
-              className="w-full h-full border-0"
-              src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6CE_UcUG9C3LLA4&q=${locations.map(l => `${l.latitude},${l.longitude}`).join('|')}&center=${locations[0]?.latitude || DEFAULT_CENTER.lat},${locations[0]?.longitude || DEFAULT_CENTER.lng}&zoom=12`}
-              allowFullScreen
-            />
-          )}
-
-          {/* Quick links to each technician */}
-          {!loading && locations.length > 0 && (
-            <div className="absolute top-4 right-4 bg-white/95 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
-              <div className="p-2 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-600">Ver en mapa</p>
-              </div>
-              <div className="p-1">
-                {locations.map((tech) => (
-                  <button
-                    key={tech.technician_id}
-                    onClick={() => openInMaps(tech.latitude, tech.longitude)}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded text-left text-sm"
-                  >
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(tech.minutes_ago)}`} />
-                    <span className="truncate">{tech.technician_name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <MapContainer
+              center={DEFAULT_CENTER}
+              zoom={12}
+              className="h-full w-full"
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <FitBounds locations={locations} />
+              {locations.map((tech) => (
+                <Marker
+                  key={tech.technician_id}
+                  position={[tech.latitude, tech.longitude]}
+                  icon={getMarkerIcon(tech.minutes_ago)}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <p className="font-semibold">{tech.technician_name}</p>
+                      <p className="text-gray-500">{getStatusText(tech.minutes_ago)}</p>
+                      {tech.battery_level !== null && (
+                        <p className="text-gray-500">🔋 {tech.battery_level}%</p>
+                      )}
+                      <button
+                        onClick={() => openInMaps(tech.latitude, tech.longitude)}
+                        className="mt-2 text-blue-500 hover:underline text-xs"
+                      >
+                        Abrir en Google Maps →
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
           )}
 
           {/* Map legend overlay */}
-          <div className="absolute bottom-4 left-4 bg-white/95 rounded-lg p-3 shadow-lg text-sm">
+          <div className="absolute bottom-4 left-4 bg-white/95 rounded-lg p-3 shadow-lg text-sm z-[1000]">
             <p className="font-semibold mb-2">Estado</p>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
