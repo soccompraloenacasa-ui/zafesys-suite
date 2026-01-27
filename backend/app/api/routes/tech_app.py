@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from pydantic import BaseModel
+import json
 from app.api.deps import get_db
 from app import crud
 from app.models.technician import Technician, TechnicianLocation
 from app.models.installation import Installation, InstallationStatus, PaymentStatus, PaymentMethod
 from app.core.security import create_access_token
+from app.services.r2_storage import get_r2_service
 
 router = APIRouter()
 
@@ -55,6 +57,10 @@ class TechInstallationResponse(BaseModel):
     timer_ended_at: Optional[datetime] = None
     timer_started_by: Optional[str] = None
     installation_duration_minutes: Optional[int] = None
+    # Media fields
+    signature_url: Optional[str] = None
+    photos_before: Optional[List[str]] = None
+    photos_after: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
@@ -87,6 +93,25 @@ class TechTimerResponse(BaseModel):
     installation_duration_minutes: Optional[int] = None
     is_running: bool = False
     elapsed_minutes: Optional[int] = None
+
+
+# Upload URL Request/Response
+class UploadUrlRequest(BaseModel):
+    file_type: str  # foto_antes, foto_despues, firma
+    client_name: str
+
+
+class UploadUrlResponse(BaseModel):
+    upload_url: str
+    public_url: str
+    key: str
+
+
+# Save Media Request
+class SaveMediaRequest(BaseModel):
+    signature_url: Optional[str] = None
+    photos_before: Optional[List[str]] = None
+    photos_after: Optional[List[str]] = None
 
 
 # GPS Tracking Schemas
@@ -145,6 +170,17 @@ def get_current_technician(
     """This is a placeholder - in production, extract from JWT token."""
     # For now, we'll pass technician_id in requests
     pass
+
+
+# Helper to parse JSON photos array
+def parse_photos_json(photos_str: Optional[str]) -> Optional[List[str]]:
+    """Parse JSON string to list of photo URLs."""
+    if not photos_str:
+        return None
+    try:
+        return json.loads(photos_str)
+    except:
+        return None
 
 
 # ============================================================
@@ -261,7 +297,10 @@ def get_my_installations(
             timer_started_at=inst.timer_started_at,
             timer_ended_at=inst.timer_ended_at,
             timer_started_by=inst.timer_started_by,
-            installation_duration_minutes=inst.installation_duration_minutes
+            installation_duration_minutes=inst.installation_duration_minutes,
+            signature_url=inst.signature_url,
+            photos_before=parse_photos_json(inst.photos_before),
+            photos_after=parse_photos_json(inst.photos_after)
         ))
 
     return result
@@ -308,7 +347,10 @@ def get_installation_detail(
         timer_started_at=installation.timer_started_at,
         timer_ended_at=installation.timer_ended_at,
         timer_started_by=installation.timer_started_by,
-        installation_duration_minutes=installation.installation_duration_minutes
+        installation_duration_minutes=installation.installation_duration_minutes,
+        signature_url=installation.signature_url,
+        photos_before=parse_photos_json(installation.photos_before),
+        photos_after=parse_photos_json(installation.photos_after)
     )
 
 
@@ -352,6 +394,96 @@ def update_installation_status(
     db.commit()
 
     return {"message": "Estado actualizado", "status": request.status}
+
+
+# ============================================================
+# MEDIA UPLOAD ENDPOINTS (R2 Storage)
+# ============================================================
+
+@router.post("/installations/{installation_id}/upload-url", response_model=UploadUrlResponse)
+def get_upload_url(
+    installation_id: int,
+    request: UploadUrlRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a presigned URL for uploading photos or signature to R2.
+    The app will use this URL to upload directly to R2.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instalacion no encontrada"
+        )
+
+    # Validate file type
+    valid_types = ["foto_antes", "foto_despues", "firma"]
+    if request.file_type not in valid_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tipo invalido. Use: {', '.join(valid_types)}"
+        )
+
+    try:
+        r2_service = get_r2_service()
+        result = r2_service.generate_upload_url(
+            installation_id=installation_id,
+            file_type=request.file_type,
+            client_name=request.client_name
+        )
+        return UploadUrlResponse(**result)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generando URL: {str(e)}"
+        )
+
+
+@router.post("/installations/{installation_id}/save-media")
+def save_media_references(
+    installation_id: int,
+    request: SaveMediaRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Save the URLs of uploaded photos/signature to the installation record.
+    Called after the app uploads files to R2.
+    """
+    installation = crud.installation.get(db, id=installation_id)
+
+    if not installation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instalacion no encontrada"
+        )
+
+    # Update signature
+    if request.signature_url:
+        installation.signature_url = request.signature_url
+
+    # Update photos before (append to existing)
+    if request.photos_before:
+        existing = parse_photos_json(installation.photos_before) or []
+        existing.extend(request.photos_before)
+        installation.photos_before = json.dumps(existing)
+
+    # Update photos after (append to existing)
+    if request.photos_after:
+        existing = parse_photos_json(installation.photos_after) or []
+        existing.extend(request.photos_after)
+        installation.photos_after = json.dumps(existing)
+
+    db.add(installation)
+    db.commit()
+
+    return {
+        "message": "Media guardada",
+        "signature_url": installation.signature_url,
+        "photos_before": parse_photos_json(installation.photos_before),
+        "photos_after": parse_photos_json(installation.photos_after)
+    }
 
 
 # ============================================================
