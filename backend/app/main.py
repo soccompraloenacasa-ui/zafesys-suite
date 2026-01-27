@@ -4,8 +4,9 @@ FastAPI backend for smart lock installation management
 """
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from app.config import settings
 from app.api.routes import api_router
@@ -157,6 +158,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Global exception handler to log errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
+
+
 # CORS middleware - hardcoded origins to ensure it works
 cors_origins = [
     "http://localhost:5173",
@@ -186,7 +198,8 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs"
+        "docs": "/docs",
+        "deployed": "2026-01-27T10:30:00Z"  # Force redeploy marker
     }
 
 
