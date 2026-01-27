@@ -157,10 +157,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - hardcoded origins to ensure it works
+cors_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "https://zafesys-suite.vercel.app",
+    "https://zafesys-suite-git-main-soccompraloenacasa-ui.vercel.app",
+    "https://zafesys-suite-soccompraloenacasa-ui.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
