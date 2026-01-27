@@ -88,7 +88,8 @@ class R2StorageService:
         return {
             'upload_url': upload_url,
             'public_url': public_url,
-            'key': key
+            'key': key,
+            'content_type': content_type
         }
 
 
