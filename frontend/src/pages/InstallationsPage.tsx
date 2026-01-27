@@ -416,7 +416,7 @@ export default function InstallationsPage() {
     try {
       await installationsApi.delete(installationId);
       // Refresh the list
-      fetchInstallations(currentDate);
+      fetchInstallations();
       // Close detail modal if it was open for this installation
       if (selectedInstallation?.id === installationId) {
         handleCloseDetail();
