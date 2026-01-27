@@ -41,7 +41,7 @@ class TechInstallationResponse(BaseModel):
     lead_phone: str
     product_name: str
     product_model: str
-    product_image: Optional[str]  # Added product image URL
+    product_image: Optional[str]
     scheduled_date: Optional[date]
     scheduled_time: Optional[str]
     address: str
@@ -61,18 +61,19 @@ class TechInstallationResponse(BaseModel):
     signature_url: Optional[str] = None
     photos_before: Optional[List[str]] = None
     photos_after: Optional[List[str]] = None
+    video_url: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
 class TechStatusUpdateRequest(BaseModel):
-    status: str  # en_camino, en_progreso, completada
+    status: str
 
 
 class TechPaymentConfirmRequest(BaseModel):
     amount: float
-    method: str  # efectivo, transferencia, nequi, daviplata
+    method: str
 
 
 class TechAvailabilityRequest(BaseModel):
@@ -84,7 +85,6 @@ class TechCompleteRequest(BaseModel):
     photo_proof_url: Optional[str] = None
 
 
-# Timer Schema for PWA
 class TechTimerResponse(BaseModel):
     installation_id: int
     timer_started_at: Optional[datetime] = None
@@ -95,9 +95,8 @@ class TechTimerResponse(BaseModel):
     elapsed_minutes: Optional[int] = None
 
 
-# Upload URL Request/Response
 class UploadUrlRequest(BaseModel):
-    file_type: str  # foto_antes, foto_despues, firma
+    file_type: str  # foto_antes, foto_despues, firma, video
     client_name: str
 
 
@@ -107,14 +106,13 @@ class UploadUrlResponse(BaseModel):
     key: str
 
 
-# Save Media Request
 class SaveMediaRequest(BaseModel):
     signature_url: Optional[str] = None
     photos_before: Optional[List[str]] = None
     photos_after: Optional[List[str]] = None
+    video_url: Optional[str] = None
 
 
-# GPS Tracking Schemas
 class LocationUpdateRequest(BaseModel):
     latitude: float
     longitude: float
@@ -123,7 +121,7 @@ class LocationUpdateRequest(BaseModel):
     heading: Optional[float] = None
     altitude: Optional[float] = None
     battery_level: Optional[int] = None
-    activity: Optional[str] = None  # idle, moving, at_installation
+    activity: Optional[str] = None
     installation_id: Optional[int] = None
 
 
@@ -160,21 +158,10 @@ class LocationHistoryResponse(BaseModel):
 
 
 # ============================================================
-# HELPER: Get current technician from token
+# HELPERS
 # ============================================================
 
-def get_current_technician(
-    db: Session = Depends(get_db),
-    token: str = Depends(lambda: None)  # Will be extracted from header
-) -> Technician:
-    """This is a placeholder - in production, extract from JWT token."""
-    # For now, we'll pass technician_id in requests
-    pass
-
-
-# Helper to parse JSON photos array
 def parse_photos_json(photos_str: Optional[str]) -> Optional[List[str]]:
-    """Parse JSON string to list of photo URLs."""
     if not photos_str:
         return None
     try:
@@ -188,23 +175,13 @@ def parse_photos_json(photos_str: Optional[str]) -> Optional[List[str]]:
 # ============================================================
 
 @router.post("/login", response_model=TechLoginResponse)
-def tech_login(
-    request: TechLoginRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Login for technicians using phone and PIN.
-    Returns a JWT token for subsequent requests.
-    """
-    # Normalize phone
+def tech_login(request: TechLoginRequest, db: Session = Depends(get_db)):
     phone = request.phone.strip()
     if not phone.startswith("+"):
         phone = f"+57{phone}" if phone.startswith("3") else phone
 
-    # Find technician by phone
     technician = crud.technician.get_by_phone(db, phone=phone)
 
-    # Also try without country code
     if not technician:
         phone_without_code = phone.replace("+57", "").replace("+", "")
         technician = db.query(Technician).filter(
@@ -213,34 +190,19 @@ def tech_login(
         ).first()
 
     if not technician:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Telefono no registrado"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telefono no registrado")
 
     if not technician.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Cuenta desactivada"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cuenta desactivada")
 
-    # Check PIN
     if not technician.pin:
-        # If no PIN set, set it now (first login)
         technician.pin = request.pin
         db.add(technician)
         db.commit()
     elif technician.pin != request.pin:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="PIN incorrecto"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="PIN incorrecto")
 
-    # Create token
-    token = create_access_token(
-        subject=f"tech:{technician.id}",
-        role="technician"
-    )
+    token = create_access_token(subject=f"tech:{technician.id}", role="technician")
 
     return TechLoginResponse(
         access_token=token,
@@ -250,30 +212,15 @@ def tech_login(
 
 
 @router.get("/my-installations", response_model=List[TechInstallationResponse])
-def get_my_installations(
-    technician_id: int,
-    target_date: Optional[date] = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Get installations assigned to a technician for a specific date.
-    If no date provided, returns today's installations.
-    """
+def get_my_installations(technician_id: int, target_date: Optional[date] = None, db: Session = Depends(get_db)):
     if target_date is None:
         target_date = date.today()
 
-    # Verify technician exists
     technician = crud.technician.get(db, id=technician_id)
     if not technician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tecnico no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tecnico no encontrado")
 
-    # Get installations
-    installations = crud.installation.get_technician_day_schedule(
-        db, technician_id=technician_id, target_date=target_date
-    )
+    installations = crud.installation.get_technician_day_schedule(db, technician_id=technician_id, target_date=target_date)
 
     result = []
     for inst in installations:
@@ -300,32 +247,22 @@ def get_my_installations(
             installation_duration_minutes=inst.installation_duration_minutes,
             signature_url=inst.signature_url,
             photos_before=parse_photos_json(inst.photos_before),
-            photos_after=parse_photos_json(inst.photos_after)
+            photos_after=parse_photos_json(inst.photos_after),
+            video_url=getattr(inst, 'video_url', None)
         ))
 
     return result
 
 
 @router.get("/installations/{installation_id}", response_model=TechInstallationResponse)
-def get_installation_detail(
-    installation_id: int,
-    technician_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get detailed information about a specific installation."""
+def get_installation_detail(installation_id: int, technician_id: int, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado para ver esta instalacion"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para ver esta instalacion")
 
     return TechInstallationResponse(
         id=installation.id,
@@ -350,39 +287,24 @@ def get_installation_detail(
         installation_duration_minutes=installation.installation_duration_minutes,
         signature_url=installation.signature_url,
         photos_before=parse_photos_json(installation.photos_before),
-        photos_after=parse_photos_json(installation.photos_after)
+        photos_after=parse_photos_json(installation.photos_after),
+        video_url=getattr(installation, 'video_url', None)
     )
 
 
 @router.patch("/installations/{installation_id}/status")
-def update_installation_status(
-    installation_id: int,
-    technician_id: int,
-    request: TechStatusUpdateRequest,
-    db: Session = Depends(get_db)
-):
-    """Update installation status (en_camino, en_progreso, completada)."""
+def update_installation_status(installation_id: int, technician_id: int, request: TechStatusUpdateRequest, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    # Validate status transition
     valid_statuses = ["en_camino", "en_progreso", "completada"]
     if request.status not in valid_statuses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Estado invalido. Use: {', '.join(valid_statuses)}"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Estado invalido. Use: {', '.join(valid_statuses)}")
 
     new_status = InstallationStatus(request.status)
     installation.status = new_status
@@ -397,34 +319,19 @@ def update_installation_status(
 
 
 # ============================================================
-# MEDIA UPLOAD ENDPOINTS (R2 Storage)
+# MEDIA UPLOAD ENDPOINTS
 # ============================================================
 
 @router.post("/installations/{installation_id}/upload-url", response_model=UploadUrlResponse)
-def get_upload_url(
-    installation_id: int,
-    request: UploadUrlRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Generate a presigned URL for uploading photos or signature to R2.
-    The app will use this URL to upload directly to R2.
-    """
+def get_upload_url(installation_id: int, request: UploadUrlRequest, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
-    # Validate file type
-    valid_types = ["foto_antes", "foto_despues", "firma"]
+    valid_types = ["foto_antes", "foto_despues", "firma", "video"]
     if request.file_type not in valid_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Tipo invalido. Use: {', '.join(valid_types)}"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Tipo invalido. Use: {', '.join(valid_types)}")
 
     try:
         r2_service = get_r2_service()
@@ -435,45 +342,31 @@ def get_upload_url(
         )
         return UploadUrlResponse(**result)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generando URL: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generando URL: {str(e)}")
 
 
 @router.post("/installations/{installation_id}/save-media")
-def save_media_references(
-    installation_id: int,
-    request: SaveMediaRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Save the URLs of uploaded photos/signature to the installation record.
-    Called after the app uploads files to R2.
-    """
+def save_media_references(installation_id: int, request: SaveMediaRequest, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
-    # Update signature
     if request.signature_url:
         installation.signature_url = request.signature_url
 
-    # Update photos before (append to existing)
     if request.photos_before:
         existing = parse_photos_json(installation.photos_before) or []
         existing.extend(request.photos_before)
         installation.photos_before = json.dumps(existing)
 
-    # Update photos after (append to existing)
     if request.photos_after:
         existing = parse_photos_json(installation.photos_after) or []
         existing.extend(request.photos_after)
         installation.photos_after = json.dumps(existing)
+
+    if request.video_url:
+        installation.video_url = request.video_url
 
     db.add(installation)
     db.commit()
@@ -482,194 +375,90 @@ def save_media_references(
         "message": "Media guardada",
         "signature_url": installation.signature_url,
         "photos_before": parse_photos_json(installation.photos_before),
-        "photos_after": parse_photos_json(installation.photos_after)
+        "photos_after": parse_photos_json(installation.photos_after),
+        "video_url": getattr(installation, 'video_url', None)
     }
 
 
 # ============================================================
-# TIMER ENDPOINTS FOR TECHNICIAN PWA
+# TIMER ENDPOINTS
 # ============================================================
 
 @router.post("/installations/{installation_id}/timer/start", response_model=TechTimerResponse)
-def start_timer(
-    installation_id: int,
-    technician_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Start the installation timer (from technician PWA).
-    Automatically sets timer_started_by to 'technician'.
-    """
+def start_timer(installation_id: int, technician_id: int, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    # Check if timer is already running
     if installation.timer_started_at and not installation.timer_ended_at:
-        # Timer already running, return current status
         timer_status = crud.installation.get_timer_status(installation)
-        return TechTimerResponse(
-            installation_id=timer_status["installation_id"],
-            timer_started_at=timer_status["timer_started_at"],
-            timer_ended_at=timer_status["timer_ended_at"],
-            timer_started_by=timer_status["timer_started_by"],
-            installation_duration_minutes=timer_status["installation_duration_minutes"],
-            is_running=timer_status["is_running"],
-            elapsed_minutes=timer_status["elapsed_minutes"]
-        )
+        return TechTimerResponse(**timer_status)
 
-    # Start the timer with 'technician' as the starter
-    installation = crud.installation.start_timer(
-        db,
-        db_obj=installation,
-        started_by="technician"
-    )
-
+    installation = crud.installation.start_timer(db, db_obj=installation, started_by="technician")
     timer_status = crud.installation.get_timer_status(installation)
-    return TechTimerResponse(
-        installation_id=timer_status["installation_id"],
-        timer_started_at=timer_status["timer_started_at"],
-        timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"],
-        installation_duration_minutes=timer_status["installation_duration_minutes"],
-        is_running=timer_status["is_running"],
-        elapsed_minutes=timer_status["elapsed_minutes"]
-    )
+    return TechTimerResponse(**timer_status)
 
 
 @router.post("/installations/{installation_id}/timer/stop", response_model=TechTimerResponse)
-def stop_timer(
-    installation_id: int,
-    technician_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Stop the installation timer (from technician PWA).
-    Calculates and stores the duration.
-    """
+def stop_timer(installation_id: int, technician_id: int, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     if installation.timer_started_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El timer no ha sido iniciado"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El timer no ha sido iniciado")
 
     if installation.timer_ended_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El timer ya fue detenido"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El timer ya fue detenido")
 
-    # Stop the timer
     installation = crud.installation.stop_timer(db, db_obj=installation)
-
     timer_status = crud.installation.get_timer_status(installation)
-    return TechTimerResponse(
-        installation_id=timer_status["installation_id"],
-        timer_started_at=timer_status["timer_started_at"],
-        timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"],
-        installation_duration_minutes=timer_status["installation_duration_minutes"],
-        is_running=timer_status["is_running"],
-        elapsed_minutes=timer_status["elapsed_minutes"]
-    )
+    return TechTimerResponse(**timer_status)
 
 
 @router.get("/installations/{installation_id}/timer", response_model=TechTimerResponse)
-def get_timer_status(
-    installation_id: int,
-    technician_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Get current timer status for an installation.
-    Shows elapsed time if timer is running.
-    """
+def get_timer_status(installation_id: int, technician_id: int, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     timer_status = crud.installation.get_timer_status(installation)
-    return TechTimerResponse(
-        installation_id=timer_status["installation_id"],
-        timer_started_at=timer_status["timer_started_at"],
-        timer_ended_at=timer_status["timer_ended_at"],
-        timer_started_by=timer_status["timer_started_by"],
-        installation_duration_minutes=timer_status["installation_duration_minutes"],
-        is_running=timer_status["is_running"],
-        elapsed_minutes=timer_status["elapsed_minutes"]
-    )
+    return TechTimerResponse(**timer_status)
 
 
 # ============================================================
-# PAYMENT & COMPLETION ENDPOINTS
+# PAYMENT & COMPLETION
 # ============================================================
 
 @router.post("/installations/{installation_id}/confirm-payment")
-def confirm_payment(
-    installation_id: int,
-    technician_id: int,
-    request: TechPaymentConfirmRequest,
-    db: Session = Depends(get_db)
-):
-    """Confirm payment received from customer."""
+def confirm_payment(installation_id: int, technician_id: int, request: TechPaymentConfirmRequest, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    # Update payment
     installation.amount_paid = float(installation.amount_paid or 0) + request.amount
 
-    # Set payment method
     try:
         installation.payment_method = PaymentMethod(request.method)
     except ValueError:
-        pass  # Keep existing method if invalid
+        pass
 
-    # Update payment status
     if installation.amount_paid >= float(installation.total_price):
         installation.payment_status = PaymentStatus.PAGADO
     elif installation.amount_paid > 0:
@@ -687,28 +476,15 @@ def confirm_payment(
 
 
 @router.post("/installations/{installation_id}/complete")
-def complete_installation(
-    installation_id: int,
-    technician_id: int,
-    request: TechCompleteRequest,
-    db: Session = Depends(get_db)
-):
-    """Mark installation as completed with optional notes and photo."""
+def complete_installation(installation_id: int, technician_id: int, request: TechCompleteRequest, db: Session = Depends(get_db)):
     installation = crud.installation.get(db, id=installation_id)
 
     if not installation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instalacion no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instalacion no encontrada")
 
     if installation.technician_id != technician_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No autorizado"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    # If timer is running, stop it first
     if installation.timer_started_at and not installation.timer_ended_at:
         crud.installation.stop_timer(db, db_obj=installation)
 
@@ -728,43 +504,25 @@ def complete_installation(
 
 
 @router.patch("/availability")
-def update_availability(
-    technician_id: int,
-    request: TechAvailabilityRequest,
-    db: Session = Depends(get_db)
-):
-    """Update technician availability status."""
+def update_availability(technician_id: int, request: TechAvailabilityRequest, db: Session = Depends(get_db)):
     technician = crud.technician.get(db, id=technician_id)
 
     if not technician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tecnico no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tecnico no encontrado")
 
     technician.is_available = request.is_available
     db.add(technician)
     db.commit()
 
-    return {
-        "message": "Disponibilidad actualizada",
-        "is_available": technician.is_available
-    }
+    return {"message": "Disponibilidad actualizada", "is_available": technician.is_available}
 
 
 @router.get("/profile")
-def get_tech_profile(
-    technician_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get technician profile info."""
+def get_tech_profile(technician_id: int, db: Session = Depends(get_db)):
     technician = crud.technician.get(db, id=technician_id)
 
     if not technician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tecnico no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tecnico no encontrado")
 
     return {
         "id": technician.id,
@@ -779,28 +537,16 @@ def get_tech_profile(
 
 
 # ============================================================
-# GPS TRACKING ENDPOINTS
+# GPS TRACKING
 # ============================================================
 
 @router.post("/location")
-def update_location(
-    technician_id: int,
-    request: LocationUpdateRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Update technician's current GPS location.
-    Called periodically by the PWA (every 2-3 minutes).
-    """
+def update_location(technician_id: int, request: LocationUpdateRequest, db: Session = Depends(get_db)):
     technician = crud.technician.get(db, id=technician_id)
     
     if not technician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tecnico no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tecnico no encontrado")
     
-    # Create location record
     location = TechnicianLocation(
         technician_id=technician_id,
         latitude=request.latitude,
@@ -817,28 +563,16 @@ def update_location(
     db.add(location)
     db.commit()
     
-    return {
-        "message": "Ubicacion actualizada",
-        "location_id": location.id,
-        "recorded_at": location.recorded_at
-    }
+    return {"message": "Ubicacion actualizada", "location_id": location.id, "recorded_at": location.recorded_at}
 
 
 @router.get("/locations/all", response_model=List[TechnicianLocationResponse])
-def get_all_technician_locations(
-    db: Session = Depends(get_db)
-):
-    """
-    Get the latest location for all active technicians.
-    Used by admin dashboard to show real-time map.
-    """
-    # Subquery to get the latest location for each technician
+def get_all_technician_locations(db: Session = Depends(get_db)):
     latest_location_subq = db.query(
         TechnicianLocation.technician_id,
         func.max(TechnicianLocation.recorded_at).label('max_recorded_at')
     ).group_by(TechnicianLocation.technician_id).subquery()
     
-    # Join to get full location data along with technician info
     results = db.query(TechnicianLocation, Technician).join(
         latest_location_subq,
         and_(
@@ -856,14 +590,12 @@ def get_all_technician_locations(
     response = []
     
     for location, technician in results:
-        # Calculate minutes since last update
         recorded_at = location.recorded_at
         if recorded_at.tzinfo is None:
             recorded_at = recorded_at.replace(tzinfo=timezone.utc)
         time_diff = now - recorded_at
         minutes_ago = int(time_diff.total_seconds() / 60)
         
-        # Get current installation if any
         current_installation = None
         if location.installation_id:
             inst = db.query(Installation).filter(Installation.id == location.installation_id).first()
@@ -894,19 +626,8 @@ def get_all_technician_locations(
 
 
 @router.get("/locations/history/{technician_id}", response_model=List[LocationHistoryResponse])
-def get_technician_location_history(
-    technician_id: int,
-    date_filter: Optional[date] = None,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    Get location history for a specific technician.
-    Useful for reviewing a technician's route during the day.
-    """
-    query = db.query(TechnicianLocation).filter(
-        TechnicianLocation.technician_id == technician_id
-    )
+def get_technician_location_history(technician_id: int, date_filter: Optional[date] = None, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(TechnicianLocation).filter(TechnicianLocation.technician_id == technician_id)
     
     if date_filter:
         start_of_day = datetime.combine(date_filter, datetime.min.time())
