@@ -302,7 +302,7 @@ export default function CustomersPage() {
         // 2. Update installation
         await installationsApi.update(editingCustomer.installation.id, {
           product_id: parseInt(formData.product_id),
-          technician_id: formData.technician_id ? parseInt(formData.technician_id) : null,
+          technician_id: formData.technician_id ? parseInt(formData.technician_id) : undefined,
           scheduled_date: formData.scheduled_date || undefined,
           scheduled_time: formData.scheduled_time || undefined,
           address: formData.address || 'Por confirmar',
