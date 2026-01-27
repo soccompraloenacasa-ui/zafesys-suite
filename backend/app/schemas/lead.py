@@ -13,7 +13,7 @@ class LeadBase(BaseModel):
     email: Optional[EmailStr] = None
     address: Optional[str] = None
     city: Optional[str] = None
-    source: LeadSource = LeadSource.WEBSITE
+    source: str = "website"
     notes: Optional[str] = None
     product_interest: Optional[str] = None
 
@@ -28,20 +28,20 @@ class LeadUpdate(BaseModel):
     email: Optional[EmailStr] = None
     address: Optional[str] = None
     city: Optional[str] = None
-    status: Optional[LeadStatus] = None
-    source: Optional[LeadSource] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
     notes: Optional[str] = None
     product_interest: Optional[str] = None
     assigned_to_id: Optional[int] = None
 
 
 class LeadStatusUpdate(BaseModel):
-    status: LeadStatus
+    status: str
 
 
 class LeadResponse(LeadBase):
     id: int
-    status: LeadStatus
+    status: str
     assigned_to_id: Optional[int] = None
     elevenlabs_conversation_id: Optional[str] = None
     conversation_transcript: Optional[str] = None
@@ -58,8 +58,8 @@ class LeadKanbanResponse(BaseModel):
     id: int
     name: str
     phone: str
-    status: LeadStatus
-    source: LeadSource
+    status: str
+    source: str
     product_interest: Optional[str] = None
     created_at: datetime
 

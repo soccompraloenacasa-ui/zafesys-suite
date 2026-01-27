@@ -95,9 +95,9 @@ class InstallationResponse(InstallationBase):
     scheduled_date: Optional[date] = None
     scheduled_time: Optional[time] = None
     estimated_duration: int
-    status: InstallationStatus
-    payment_status: PaymentStatus
-    payment_method: Optional[PaymentMethod] = None
+    status: str
+    payment_status: str
+    payment_method: Optional[str] = None
     amount_paid: Decimal
     technician_notes: Optional[str] = None
     internal_notes: Optional[str] = None
@@ -146,9 +146,9 @@ class InstallationAppResponse(BaseModel):
     scheduled_date: Optional[date] = None
     scheduled_time: Optional[time] = None
     estimated_duration: int = 60
-    status: InstallationStatus
-    payment_status: PaymentStatus
-    payment_method: Optional[PaymentMethod] = None
+    status: str
+    payment_status: str
+    payment_method: Optional[str] = None
     amount_paid: Decimal = Decimal("0")
     technician_notes: Optional[str] = None
     completed_at: Optional[datetime] = None
