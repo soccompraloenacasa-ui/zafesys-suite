@@ -123,10 +123,11 @@ def run_migrations():
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS timer_started_by VARCHAR(20);",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS installation_duration_minutes INTEGER;",
 
-        # Installation Media columns - photos and signature
+        # Installation Media columns - photos, signature, video
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS signature_url VARCHAR(500);",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_before TEXT;",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS photos_after TEXT;",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS video_url VARCHAR(500);",
     ]
     
     with engine.connect() as conn:
@@ -164,13 +165,26 @@ app = FastAPI(
 )
 
 
-# Global exception handler to log errors
+# Global exception handler to log errors with CORS headers
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error on {request.method} {request.url}: {exc}", exc_info=True)
+
+    # Get origin from request
+    origin = request.headers.get("origin", "")
+
+    # Build CORS headers if origin is allowed
+    headers = {}
+    if origin in cors_origins:
+        headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {str(exc)}"}
+        content={"detail": f"Internal server error: {str(exc)}"},
+        headers=headers
     )
 
 

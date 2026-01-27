@@ -108,6 +108,11 @@ class InstallationResponse(InstallationBase):
     timer_ended_at: Optional[datetime] = None
     timer_started_by: Optional[str] = None
     installation_duration_minutes: Optional[int] = None
+    # Media fields
+    signature_url: Optional[str] = None
+    photos_before: Optional[str] = None  # JSON string
+    photos_after: Optional[str] = None   # JSON string
+    video_url: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -157,6 +162,7 @@ class InstallationAppResponse(BaseModel):
     signature_url: Optional[str] = None
     photos_before: Optional[list[str]] = None
     photos_after: Optional[list[str]] = None
+    video_url: Optional[str] = None
     # Related data
     lead_name: Optional[str] = None
     lead_phone: Optional[str] = None
