@@ -6,6 +6,12 @@ import Modal from '../components/common/Modal';
 import { CITIES } from '../constants/cities';
 import { getColombiaDate } from '../utils/timezone';
 
+// Opciones de precio de instalación
+const INSTALLATION_PRICES = [
+  { value: '189000', label: '$189,000 - Instalación estándar' },
+  { value: '250000', label: '$250,000 - Instalación + desplazamiento' },
+];
+
 // Installation status labels with colors
 const installationStatusLabels: Record<string, { label: string; color: string; bgColor: string }> = {
   pendiente: { label: 'Pendiente', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
@@ -45,7 +51,10 @@ interface CustomerFormData {
   technician_id: string;
   scheduled_date: string;
   scheduled_time: string;
-  price_adjustment: string; // Can be positive (aumento) or negative (descuento)
+  price_adjustment: string; // Can be positive (aumento) or negative (descuento) for product
+  // Installation service fields
+  installation_price: string; // Base installation price (189000 or 250000)
+  installation_adjustment: string; // Adjustment for installation (positive or negative)
 }
 
 const initialFormData: CustomerFormData = {
@@ -60,6 +69,8 @@ const initialFormData: CustomerFormData = {
   scheduled_date: '',
   scheduled_time: '',
   price_adjustment: '0',
+  installation_price: '189000', // Default: instalación estándar
+  installation_adjustment: '0',
 };
 
 export default function CustomersPage() {
@@ -210,8 +221,16 @@ export default function CustomersPage() {
   // Calculate final price (using integers to avoid floating point issues)
   const selectedProduct = products.find(p => p.id === parseInt(formData.product_id));
   const basePrice = Math.round(Number(selectedProduct?.installation_price) || 0);
-  const adjustment = parseInt(formData.price_adjustment.replace(/[^0-9-]/g, '')) || 0;
-  const finalPrice = basePrice + adjustment;
+  const productAdjustment = parseInt(formData.price_adjustment.replace(/[^0-9-]/g, '')) || 0;
+  const productFinalPrice = basePrice + productAdjustment;
+
+  // Installation service price calculation
+  const installationBasePrice = parseInt(formData.installation_price) || 189000;
+  const installationAdjustment = parseInt(formData.installation_adjustment.replace(/[^0-9-]/g, '')) || 0;
+  const installationFinalPrice = installationBasePrice + installationAdjustment;
+
+  // Total price = product price + installation service price
+  const finalPrice = productFinalPrice + installationFinalPrice;
 
   // Image lightbox handlers
   const handleOpenImage = (url: string, name: string) => {
@@ -244,10 +263,30 @@ export default function CustomersPage() {
       setTechnicians(techniciansData);
 
       // Calculate adjustment from stored price vs product price
+      // Assume stored total_price includes both product and installation
       const product = productsData.find((p: Product) => p.id === customer.installation.product_id);
-      const storedPrice = Number(customer.installation.total_price) || 0;
-      const productPrice = Number(product?.installation_price) || 0;
-      const calculatedAdjustment = storedPrice - productPrice;
+      const storedTotalPrice = Number(customer.installation.total_price) || 0;
+      const productBasePrice = Number(product?.installation_price) || 0;
+
+      // Try to detect installation type based on price pattern
+      // If total is close to productBase + 189000, it's standard installation
+      // If total is close to productBase + 250000, it's with displacement
+      const standardTotal = productBasePrice + 189000;
+      const displacementTotal = productBasePrice + 250000;
+
+      let detectedInstallationPrice = '189000';
+      let calculatedProductAdjustment = 0;
+      let calculatedInstallationAdjustment = 0;
+
+      // Simple heuristic: if stored price is closer to displacement total, use that
+      if (Math.abs(storedTotalPrice - displacementTotal) < Math.abs(storedTotalPrice - standardTotal)) {
+        detectedInstallationPrice = '250000';
+        // Any remaining difference is adjustments (split to product adjustment for simplicity)
+        calculatedProductAdjustment = storedTotalPrice - (productBasePrice + 250000);
+      } else {
+        detectedInstallationPrice = '189000';
+        calculatedProductAdjustment = storedTotalPrice - (productBasePrice + 189000);
+      }
 
       setFormData({
         name: customer.name,
@@ -260,7 +299,9 @@ export default function CustomersPage() {
         technician_id: customer.installation.technician_id?.toString() || '',
         scheduled_date: customer.installation.scheduled_date || '',
         scheduled_time: customer.installation.scheduled_time || '',
-        price_adjustment: calculatedAdjustment.toString(),
+        price_adjustment: calculatedProductAdjustment.toString(),
+        installation_price: detectedInstallationPrice,
+        installation_adjustment: calculatedInstallationAdjustment.toString(),
       });
       setIsModalOpen(true);
     } catch (error) {
@@ -920,40 +961,102 @@ export default function CustomersPage() {
               </div>
             </div>
 
-            {/* Precio y ajuste */}
-            <div className="grid grid-cols-3 gap-4 mt-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio base
-                </label>
-                <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                  ${basePrice.toLocaleString('es-CO')}
+            {/* Precio del producto y ajuste */}
+            <div className="bg-gray-50 rounded-lg p-3 mt-3">
+              <p className="text-xs font-semibold text-gray-500 mb-2 uppercase">Precio del Producto</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Base
+                  </label>
+                  <div className="px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm">
+                    ${basePrice.toLocaleString('es-CO')}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Ajuste (+/-)
+                  </label>
+                  <input
+                    type="number"
+                    name="price_adjustment"
+                    value={formData.price_adjustment}
+                    onChange={handleInputChange}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Subtotal
+                  </label>
+                  <div className={`px-2 py-1.5 border rounded-lg font-medium text-sm ${productAdjustment < 0 ? 'bg-green-50 border-green-300 text-green-700' : productAdjustment > 0 ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-gray-300 text-gray-700'}`}>
+                    ${productFinalPrice.toLocaleString('es-CO')}
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ajuste (+/-)
-                </label>
-                <input
-                  type="number"
-                  name="price_adjustment"
-                  value={formData.price_adjustment}
-                  onChange={handleInputChange}
-                  placeholder="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Negativo = descuento</p>
+            {/* Precio de instalación y ajuste */}
+            <div className="bg-blue-50 rounded-lg p-3 mt-3">
+              <p className="text-xs font-semibold text-blue-600 mb-2 uppercase">Servicio de Instalación</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Tipo de instalación
+                  </label>
+                  <select
+                    name="installation_price"
+                    value={formData.installation_price}
+                    onChange={handleInputChange}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm bg-white"
+                  >
+                    {INSTALLATION_PRICES.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Ajuste (+/-)
+                  </label>
+                  <input
+                    type="number"
+                    name="installation_adjustment"
+                    value={formData.installation_adjustment}
+                    onChange={handleInputChange}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Subtotal
+                  </label>
+                  <div className={`px-2 py-1.5 border rounded-lg font-medium text-sm ${installationAdjustment < 0 ? 'bg-green-50 border-green-300 text-green-700' : installationAdjustment > 0 ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-gray-300 text-gray-700'}`}>
+                    ${installationFinalPrice.toLocaleString('es-CO')}
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio final
-                </label>
-                <div className={`px-3 py-2 border rounded-lg font-semibold ${adjustment < 0 ? 'bg-green-50 border-green-300 text-green-700' : adjustment > 0 ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-cyan-50 border-cyan-300 text-cyan-700'}`}>
+            {/* Total final */}
+            <div className="bg-cyan-50 rounded-lg p-3 mt-3 border-2 border-cyan-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-cyan-700">TOTAL A COBRAR</span>
+                <span className="text-xl font-bold text-cyan-700">
                   ${finalPrice.toLocaleString('es-CO')}
-                </div>
+                </span>
               </div>
+              <p className="text-xs text-cyan-600 mt-1">
+                Producto: ${productFinalPrice.toLocaleString('es-CO')} + Instalación: ${installationFinalPrice.toLocaleString('es-CO')}
+              </p>
             </div>
           </div>
 
