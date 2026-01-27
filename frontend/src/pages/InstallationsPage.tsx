@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer, AlertTriangle } from 'lucide-react';
+import { Clock, User, ChevronLeft, ChevronRight, Plus, MapPin, Phone, Package, Calendar, MessageSquare, X, UserPlus, Percent, DollarSign, Edit3, Search, Trash2, ZoomIn, TrendingUp, TrendingDown, Timer, AlertTriangle, CheckCircle } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import { getColombiaDate, getWeekDaysColombia, isTodayColombia, formatDateColombia, isSameDayColombia } from '../utils/timezone';
 import type { Installation, Lead, Product, Technician, LeadStatus, LeadSource, TimerResponse } from '../types';
@@ -166,6 +166,9 @@ export default function InstallationsPage() {
 
   // Image lightbox state
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
+
+  // Complete installation state
+  const [completing, setCompleting] = useState(false);
 
   // Options for selects
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -424,6 +427,33 @@ export default function InstallationsPage() {
     } catch (error) {
       console.error('Error deleting installation:', error);
       alert('Error al eliminar la instalación');
+    }
+  };
+
+  // Complete installation manually (for old installations without timer)
+  const handleCompleteInstallation = async () => {
+    if (!selectedInstallation) return;
+
+    if (!confirm(`¿Marcar instalación #${selectedInstallation.id} como completada?`)) {
+      return;
+    }
+
+    setCompleting(true);
+    try {
+      await installationsApi.update(selectedInstallation.id, {
+        status: 'completada' as const
+      });
+
+      // Update the selected installation in the modal
+      setSelectedInstallation(prev => prev ? { ...prev, status: 'completada' } : null);
+
+      // Refresh the list
+      fetchInstallations();
+    } catch (error) {
+      console.error('Error completing installation:', error);
+      alert('Error al completar la instalación');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -1140,6 +1170,27 @@ export default function InstallationsPage() {
                     <h3 className="text-sm font-semibold text-yellow-800 mb-1">Notas del cliente</h3>
                     <p className="text-yellow-700">{selectedInstallation.customer_notes}</p>
                   </div>
+                )}
+
+                {/* Complete Installation Button - Only show for non-completed/non-cancelled installations */}
+                {selectedInstallation.status !== 'completada' && selectedInstallation.status !== 'cancelada' && (
+                  <button
+                    onClick={handleCompleteInstallation}
+                    disabled={completing}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {completing ? (
+                      <>
+                        <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                        Finalizando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        Finalizar Instalación
+                      </>
+                    )}
+                  </button>
                 )}
 
                 {/* Edit Button at bottom */}
