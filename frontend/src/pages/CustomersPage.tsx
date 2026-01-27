@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Users, Search, Phone, Mail, MapPin, Package, Calendar, Wrench, CheckCircle, LayoutGrid, List, Pencil, Trash2, X, ZoomIn } from 'lucide-react';
 import { installationsApi, leadsApi, productsApi, techniciansApi } from '../services/api';
 import type { Installation, Lead, Product, Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -85,6 +85,9 @@ export default function CustomersPage() {
   // Delete confirmation
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerWithInstallation | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Image lightbox
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -209,6 +212,15 @@ export default function CustomersPage() {
   const basePrice = Math.round(Number(selectedProduct?.installation_price) || 0);
   const adjustment = parseInt(formData.price_adjustment.replace(/[^0-9-]/g, '')) || 0;
   const finalPrice = basePrice + adjustment;
+
+  // Image lightbox handlers
+  const handleOpenImage = (url: string, name: string) => {
+    setEnlargedImage({ url, name });
+  };
+
+  const handleCloseImage = () => {
+    setEnlargedImage(null);
+  };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -810,44 +822,73 @@ export default function CustomersPage() {
               Producto e Instalación
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Producto *
-                </label>
-                <select
-                  name="product_id"
-                  value={formData.product_id}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                  required
-                >
-                  <option value="">Seleccionar producto...</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} - ${product.installation_price?.toLocaleString('es-CO')}
-                    </option>
-                  ))}
-                </select>
+            {/* Product selection with thumbnail */}
+            <div className="flex items-start gap-3 mb-4">
+              {/* Thumbnail */}
+              <div
+                className={`w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border-2 border-dashed border-gray-300 relative group ${selectedProduct?.image_url ? 'cursor-pointer hover:ring-2 hover:ring-cyan-400 border-solid border-cyan-200' : ''}`}
+                onClick={() => {
+                  if (selectedProduct?.image_url) {
+                    handleOpenImage(selectedProduct.image_url, selectedProduct.name);
+                  }
+                }}
+              >
+                {selectedProduct?.image_url ? (
+                  <>
+                    <img
+                      src={selectedProduct.image_url}
+                      alt={selectedProduct.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </>
+                ) : (
+                  <Package className="w-6 h-6 text-gray-400" />
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Técnico
-                </label>
-                <select
-                  name="technician_id"
-                  value={formData.technician_id}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                >
-                  <option value="">Sin asignar</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.full_name}
-                    </option>
-                  ))}
-                </select>
+              {/* Product and Technician selects */}
+              <div className="flex-1 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Producto *
+                  </label>
+                  <select
+                    name="product_id"
+                    value={formData.product_id}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} - ${product.installation_price?.toLocaleString('es-CO')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Técnico
+                  </label>
+                  <select
+                    name="technician_id"
+                    value={formData.technician_id}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm"
+                  >
+                    <option value="">Sin asignar</option>
+                    {technicians.map((tech) => (
+                      <option key={tech.id} value={tech.id}>
+                        {tech.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -968,6 +1009,39 @@ export default function CustomersPage() {
           </p>
         </div>
       </Modal>
+
+      {/* Image Lightbox Modal */}
+      {enlargedImage && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
+          onClick={handleCloseImage}
+        >
+          <div
+            className="relative max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={handleCloseImage}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+
+            {/* Product name */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
+              <p className="text-white font-medium text-lg">{enlargedImage.name}</p>
+            </div>
+
+            {/* Image */}
+            <img
+              src={enlargedImage.url}
+              alt={enlargedImage.name}
+              className="max-w-full max-h-[85vh] object-contain mx-auto rounded-lg"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
