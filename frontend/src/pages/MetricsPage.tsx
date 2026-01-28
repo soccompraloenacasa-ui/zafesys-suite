@@ -21,7 +21,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { format, subDays, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
+import { format, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 
