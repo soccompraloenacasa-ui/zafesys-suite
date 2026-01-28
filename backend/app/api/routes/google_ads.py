@@ -547,6 +547,91 @@ async def test_google_ads_connection(
     return diagnostics
 
 
+@router.get("/list-customers")
+async def list_all_customers(
+    account: int = Query(..., ge=1, le=2),
+    db: Session = Depends(get_db),
+):
+    """
+    List all accessible customers with details.
+    Shows if account is manager (MCC) or client, and lists sub-accounts if manager.
+    """
+    account_record = get_or_create_account(db, account)
+
+    if not account_record.connected:
+        raise HTTPException(status_code=400, detail="Account not connected")
+
+    access_token = await get_valid_access_token(account_record, db)
+
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Could not get valid access token")
+
+    # Get all accessible customer IDs first
+    customer_ids, fetch_error = await fetch_accessible_customers(access_token)
+
+    if fetch_error:
+        return {"error": fetch_error, "customers": []}
+
+    customers = []
+
+    for cid in customer_ids:
+        # Get customer info
+        query = """
+            SELECT
+                customer.id,
+                customer.descriptive_name,
+                customer.manager,
+                customer.currency_code,
+                customer.time_zone
+            FROM customer
+            LIMIT 1
+        """
+
+        results = await execute_google_ads_query(access_token, cid, query)
+
+        customer_info = {
+            "customer_id": cid,
+            "name": "Unknown",
+            "is_manager": False,
+            "currency": "USD",
+            "timezone": "America/Bogota",
+            "sub_accounts": []
+        }
+
+        if results:
+            customer_data = results[0].get("customer", {})
+            customer_info["name"] = customer_data.get("descriptiveName", "Sin nombre")
+            customer_info["is_manager"] = customer_data.get("manager", False)
+            customer_info["currency"] = customer_data.get("currencyCode", "USD")
+            customer_info["timezone"] = customer_data.get("timeZone", "America/Bogota")
+
+            # If it's a manager account, list sub-accounts
+            if customer_info["is_manager"]:
+                sub_query = """
+                    SELECT
+                        customer_client.client_customer,
+                        customer_client.descriptive_name,
+                        customer_client.manager,
+                        customer_client.level
+                    FROM customer_client
+                    WHERE customer_client.level = 1
+                """
+                sub_results = await execute_google_ads_query(access_token, cid, sub_query)
+
+                for sub in sub_results:
+                    sub_data = sub.get("customerClient", {})
+                    client_id = sub_data.get("clientCustomer", "").split("/")[-1]
+                    customer_info["sub_accounts"].append({
+                        "customer_id": client_id,
+                        "name": sub_data.get("descriptiveName", "Sin nombre"),
+                        "is_manager": sub_data.get("manager", False)
+                    })
+
+        customers.append(customer_info)
+
+    return {"customers": customers}
+
+
 @router.get("/spend")
 async def get_spend_summary(
     account: int = Query(..., ge=1, le=2),
