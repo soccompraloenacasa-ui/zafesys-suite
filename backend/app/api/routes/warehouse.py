@@ -11,12 +11,17 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from passlib.context import CryptContext
 from app.api.deps import get_db
+from app.core.security import create_access_token
+from app.config import settings
 from app.models.installation import Installation
 from app.models.product import Product
 from app.models.lead import Lead
 from app.models.technician import Technician
 from app.models.user import User
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -63,7 +68,74 @@ class UpdateStatusRequest(BaseModel):
     user_id: int
 
 
+class WarehouseLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class WarehouseLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: WarehouseUser
+
+
 # ============== ENDPOINTS ==============
+
+@router.post("/login", response_model=WarehouseLoginResponse)
+async def warehouse_login(
+    request: WarehouseLoginRequest,
+    db: Session = Depends(get_db),
+):
+    """Login for warehouse app users."""
+    logger.info(f"POST /warehouse/login called for email: {request.email}")
+
+    # Find user by email
+    user = db.query(User).filter(
+        User.email == request.email,
+        User.is_active == True,
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Email o contraseña incorrectos"
+        )
+
+    # Verify password
+    if not pwd_context.verify(request.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Email o contraseña incorrectos"
+        )
+
+    # Check role (allow admin and warehouse)
+    user_role = user.role if isinstance(user.role, str) else user.role.value
+    if user_role not in ['admin', 'warehouse', 'bodega']:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para acceder a la app de bodega"
+        )
+
+    # Create access token
+    from datetime import timedelta
+    access_token = create_access_token(
+        subject=user.id,
+        role=user_role,
+        expires_delta=timedelta(days=30)
+    )
+
+    logger.info(f"Warehouse login successful for user: {user.email}")
+
+    return WarehouseLoginResponse(
+        access_token=access_token,
+        user=WarehouseUser(
+            id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            phone=user.phone,
+            is_active=user.is_active,
+        )
+    )
 
 @router.get("/users", response_model=List[WarehouseUser])
 async def get_warehouse_users(db: Session = Depends(get_db)):
