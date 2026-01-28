@@ -1,6 +1,7 @@
 """
 ZAFESYS Suite - Main Application
 FastAPI backend for smart lock installation management
+Version: 1.2.0 - Added users management API
 """
 import logging
 from contextlib import asynccontextmanager
