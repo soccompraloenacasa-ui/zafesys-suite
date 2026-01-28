@@ -119,7 +119,7 @@ async def get_installation_analytics(
         if inst.technician_id:
             tech_counts[inst.technician_id] += 1
             if inst.technician:
-                tech_names[inst.technician_id] = inst.technician.name
+                tech_names[inst.technician_id] = inst.technician.full_name
 
     top_tech = None
     if tech_counts:
@@ -228,4 +228,4 @@ async def get_installation_analytics(
 async def get_technicians_list(db: Session = Depends(get_db)):
     """Get list of technicians for filter dropdown."""
     technicians = db.query(Technician).filter(Technician.is_active == True).all()
-    return [{"id": t.id, "name": t.name} for t in technicians]
+    return [{"id": t.id, "name": t.full_name} for t in technicians]
