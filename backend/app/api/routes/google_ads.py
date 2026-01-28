@@ -433,14 +433,22 @@ async def get_spend_summary(
 @router.get("/metrics", response_model=MetricsResponse)
 async def get_google_ads_metrics(
     account: int = Query(..., ge=1, le=2),
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(None, ge=1, le=365),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
 ):
     """
     Get REAL Google Ads metrics for a connected account.
     Returns empty data if no campaigns or spend.
+
+    Parameters:
+    - account: 1 or 2
+    - start_date: Start date in YYYY-MM-DD format (optional)
+    - end_date: End date in YYYY-MM-DD format (optional)
+    - days: Number of days (legacy, used if start_date/end_date not provided)
     """
-    logger.info(f"GET /google-ads/metrics called for account {account}, days={days}")
+    logger.info(f"GET /google-ads/metrics called for account {account}, start_date={start_date}, end_date={end_date}, days={days}")
 
     account_record = get_or_create_account(db, account)
 
@@ -449,8 +457,31 @@ async def get_google_ads_metrics(
 
     # Calculate date range
     today = datetime.now(timezone.utc).date()
-    period_end = today
-    period_start = today - timedelta(days=days - 1)
+
+    if start_date and end_date:
+        try:
+            period_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            period_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            # Validate date range
+            if period_start > period_end:
+                raise HTTPException(status_code=400, detail="start_date cannot be after end_date")
+
+            # Max 1 year range
+            if (period_end - period_start).days > 365:
+                raise HTTPException(status_code=400, detail="Date range cannot exceed 1 year")
+
+            # Don't allow future dates
+            if period_end > today:
+                period_end = today
+
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    else:
+        # Legacy: use days parameter (default 30)
+        days = days or 30
+        period_end = today
+        period_start = today - timedelta(days=days - 1)
 
     # Initialize empty response
     daily_spend: list[DailySpend] = []

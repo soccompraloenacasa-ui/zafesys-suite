@@ -1,9 +1,86 @@
-import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, RefreshCw, AlertCircle, DollarSign, Eye, MousePointer, Target, BarChart3 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { TrendingUp, RefreshCw, AlertCircle, DollarSign, Eye, MousePointer, Target, BarChart3, Calendar, ChevronDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { googleAdsApi } from '../services/api';
 import AccountCard from '../components/google-ads/AccountCard';
 import type { GoogleAdsStatus, GoogleAdsSpendSummary, GoogleAdsMetrics } from '../types';
+
+// Date period options
+type DatePeriod = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'last_year' | 'custom';
+
+interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+const DATE_PERIOD_LABELS: Record<DatePeriod, string> = {
+  today: 'Hoy',
+  yesterday: 'Ayer',
+  last_7_days: 'Últimos 7 días',
+  last_14_days: 'Últimos 14 días',
+  last_30_days: 'Últimos 30 días',
+  this_month: 'Este mes',
+  last_month: 'Mes pasado',
+  last_3_months: 'Últimos 3 meses',
+  this_year: 'Este año',
+  last_year: 'Año pasado',
+  custom: 'Personalizado',
+};
+
+function getDateRange(period: DatePeriod): DateRange {
+  const today = new Date();
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+  switch (period) {
+    case 'today':
+      return { startDate: formatDate(today), endDate: formatDate(today) };
+    case 'yesterday': {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { startDate: formatDate(yesterday), endDate: formatDate(yesterday) };
+    }
+    case 'last_7_days': {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 6);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'last_14_days': {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 13);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'last_30_days': {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 29);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'this_month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'last_month': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { startDate: formatDate(start), endDate: formatDate(end) };
+    }
+    case 'last_3_months': {
+      const start = new Date(today);
+      start.setMonth(start.getMonth() - 3);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'this_year': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { startDate: formatDate(start), endDate: formatDate(today) };
+    }
+    case 'last_year': {
+      const start = new Date(today.getFullYear() - 1, 0, 1);
+      const end = new Date(today.getFullYear() - 1, 11, 31);
+      return { startDate: formatDate(start), endDate: formatDate(end) };
+    }
+    default:
+      return { startDate: formatDate(today), endDate: formatDate(today) };
+  }
+}
 
 export default function GoogleAdsPage() {
   const [status, setStatus] = useState<GoogleAdsStatus | null>(null);
@@ -16,6 +93,43 @@ export default function GoogleAdsPage() {
   const [connectingAccount, setConnectingAccount] = useState<1 | 2 | null>(null);
   const [disconnectingAccount, setDisconnectingAccount] = useState<1 | 2 | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Date filter state
+  const [selectedPeriod, setSelectedPeriod] = useState<DatePeriod>('last_30_days');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+
+  // Calculate current date range
+  const dateRange = useMemo(() => {
+    if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
+      return { startDate: customStartDate, endDate: customEndDate };
+    }
+    return getDateRange(selectedPeriod);
+  }, [selectedPeriod, customStartDate, customEndDate]);
+
+  // Format date range for display
+  const dateRangeLabel = useMemo(() => {
+    if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate + 'T00:00:00');
+      const end = new Date(customEndDate + 'T00:00:00');
+      return `${start.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    }
+    return DATE_PERIOD_LABELS[selectedPeriod];
+  }, [selectedPeriod, customStartDate, customEndDate]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showPeriodDropdown && !target.closest('[data-period-dropdown]')) {
+        setShowPeriodDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPeriodDropdown]);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -53,10 +167,13 @@ export default function GoogleAdsPage() {
     }
   }, []);
 
-  const fetchMetrics = useCallback(async (account: 1 | 2) => {
+  const fetchMetrics = useCallback(async (account: 1 | 2, range: DateRange) => {
     try {
       setMetricsLoading(true);
-      const metricsData = await googleAdsApi.getMetrics(account, 30);
+      const metricsData = await googleAdsApi.getMetrics(account, {
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
       setMetrics(metricsData);
     } catch (err) {
       console.error('Error fetching metrics:', err);
@@ -84,16 +201,20 @@ export default function GoogleAdsPage() {
     }
   }, [fetchStatus]);
 
-  // Fetch metrics when an account is connected
+  // Fetch metrics when an account is connected or date range changes
   useEffect(() => {
-    if (status?.account1.connected) {
-      fetchMetrics(1);
+    if (status?.account1.connected && selectedAccount === 1) {
+      fetchMetrics(1, dateRange);
+    } else if (status?.account2.connected && selectedAccount === 2) {
+      fetchMetrics(2, dateRange);
+    } else if (status?.account1.connected) {
+      fetchMetrics(1, dateRange);
       setSelectedAccount(1);
     } else if (status?.account2.connected) {
-      fetchMetrics(2);
+      fetchMetrics(2, dateRange);
       setSelectedAccount(2);
     }
-  }, [status, fetchMetrics]);
+  }, [status, fetchMetrics, dateRange, selectedAccount]);
 
   const handleConnect = async (account: 1 | 2) => {
     try {
@@ -133,7 +254,7 @@ export default function GoogleAdsPage() {
     setLoading(true);
     fetchStatus();
     if (metrics) {
-      fetchMetrics(selectedAccount);
+      fetchMetrics(selectedAccount, dateRange);
     }
   };
 
@@ -141,7 +262,38 @@ export default function GoogleAdsPage() {
     setSelectedAccount(account);
     const accountStatus = account === 1 ? status?.account1 : status?.account2;
     if (accountStatus?.connected) {
-      fetchMetrics(account);
+      fetchMetrics(account, dateRange);
+    }
+  };
+
+  const handlePeriodChange = (period: DatePeriod) => {
+    setSelectedPeriod(period);
+    setShowPeriodDropdown(false);
+    if (period !== 'custom') {
+      setCustomStartDate('');
+      setCustomEndDate('');
+    }
+  };
+
+  const handleCustomDateChange = () => {
+    if (customStartDate && customEndDate) {
+      // Validate date range
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (start > end) {
+        setError('La fecha de inicio no puede ser posterior a la fecha de fin.');
+        return;
+      }
+
+      if (diffDays > 365) {
+        setError('El rango de fechas no puede exceder 1 año.');
+        return;
+      }
+
+      setError(null);
+      setSelectedPeriod('custom');
     }
   };
 
@@ -221,35 +373,114 @@ export default function GoogleAdsPage() {
       {/* Metrics Section */}
       {hasConnectedAccount && (
         <>
-          {/* Account Selector */}
-          <div className="mb-6 flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-700">Ver métricas de:</span>
-            <div className="flex gap-2">
-              {status?.account1.connected && (
-                <button
-                  onClick={() => handleAccountChange(1)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedAccount === 1
-                      ? 'bg-cyan-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Cuenta 1
-                </button>
-              )}
-              {status?.account2.connected && (
-                <button
-                  onClick={() => handleAccountChange(2)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedAccount === 2
-                      ? 'bg-cyan-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Cuenta 2
-                </button>
+          {/* Account Selector and Date Filters */}
+          <div className="mb-6 bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Account Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Cuenta:</span>
+                <div className="flex gap-2">
+                  {status?.account1.connected && (
+                    <button
+                      onClick={() => handleAccountChange(1)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedAccount === 1
+                          ? 'bg-cyan-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Cuenta 1
+                    </button>
+                  )}
+                  {status?.account2.connected && (
+                    <button
+                      onClick={() => handleAccountChange(2)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedAccount === 2
+                          ? 'bg-cyan-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Cuenta 2
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Separator */}
+              <div className="hidden md:block h-8 w-px bg-gray-200" />
+
+              {/* Date Period Selector */}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Período:</span>
+                <div className="relative" data-period-dropdown>
+                  <button
+                    onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors min-w-[160px]"
+                  >
+                    <span>{dateRangeLabel}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showPeriodDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown */}
+                  {showPeriodDropdown && (
+                    <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 max-h-80 overflow-y-auto">
+                      {(Object.keys(DATE_PERIOD_LABELS) as DatePeriod[]).map((period) => (
+                        <button
+                          key={period}
+                          onClick={() => handlePeriodChange(period)}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                            selectedPeriod === period ? 'bg-cyan-50 text-cyan-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          {DATE_PERIOD_LABELS[period]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Custom Date Pickers */}
+              {selectedPeriod === 'custom' && (
+                <>
+                  <div className="hidden md:block h-8 w-px bg-gray-200" />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      max={customEndDate || new Date().toISOString().split('T')[0]}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    />
+                    <span className="text-gray-500">-</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      min={customStartDate}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleCustomDateChange}
+                      disabled={!customStartDate || !customEndDate}
+                      className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </>
               )}
             </div>
+
+            {/* Date range info */}
+            {metrics && (
+              <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+                Mostrando datos del {new Date(metrics.period_start + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })} al {new Date(metrics.period_end + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            )}
           </div>
 
           {metricsLoading ? (
@@ -277,7 +508,7 @@ export default function GoogleAdsPage() {
                   <h3 className="text-2xl font-bold text-gray-900 mb-1">
                     {formatCurrency(metrics.total_spend)}
                   </h3>
-                  <p className="text-sm text-gray-500">Gasto Total (30 días)</p>
+                  <p className="text-sm text-gray-500">Gasto Total</p>
                 </div>
 
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -349,7 +580,7 @@ export default function GoogleAdsPage() {
 
               {/* Daily Spend Chart */}
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Gasto Diario (Últimos 30 días)</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Gasto Diario</h2>
                 {metrics.daily_spend.length > 0 ? (
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">

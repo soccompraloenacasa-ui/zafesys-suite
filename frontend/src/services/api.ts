@@ -557,10 +557,22 @@ export const googleAdsApi = {
   },
 
   // Get detailed metrics for a connected account
-  getMetrics: async (account: 1 | 2, days: number = 30): Promise<GoogleAdsMetrics> => {
-    const { data } = await api.get('/google-ads/metrics', {
-      params: { account, days },
-    });
+  getMetrics: async (
+    account: 1 | 2,
+    options?: { days?: number; startDate?: string; endDate?: string }
+  ): Promise<GoogleAdsMetrics> => {
+    const params: Record<string, string | number> = { account };
+
+    if (options?.startDate && options?.endDate) {
+      params.start_date = options.startDate;
+      params.end_date = options.endDate;
+    } else if (options?.days) {
+      params.days = options.days;
+    } else {
+      params.days = 30; // default
+    }
+
+    const { data } = await api.get('/google-ads/metrics', { params });
     return data;
   },
 };
