@@ -226,3 +226,43 @@ export interface GoogleAdsSpendSummary {
   spend_last_7_days: number;
   currency: string;
 }
+
+export interface DailySpend {
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+}
+
+export interface CampaignMetrics {
+  campaign_id: string;
+  campaign_name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  conversions: number;
+}
+
+export interface ROIMetrics {
+  total_sales: number;
+  total_installations: number;
+  roi_percentage: number;
+  cost_per_installation: number;
+}
+
+export interface GoogleAdsMetrics {
+  account: 1 | 2;
+  period_start: string;
+  period_end: string;
+  total_spend: number;
+  total_impressions: number;
+  total_clicks: number;
+  average_ctr: number;
+  average_cpc: number;
+  daily_spend: DailySpend[];
+  campaigns: CampaignMetrics[];
+  roi: ROIMetrics | null;
+  currency: string;
+}

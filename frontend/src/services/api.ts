@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken, Customer, Distributor, DistributorSale, GoogleAdsStatus, GoogleAdsSpendSummary } from '../types';
+import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken, Customer, Distributor, DistributorSale, GoogleAdsStatus, GoogleAdsSpendSummary, GoogleAdsMetrics } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
@@ -552,6 +552,14 @@ export const googleAdsApi = {
   getSpendSummary: async (account: 1 | 2): Promise<GoogleAdsSpendSummary> => {
     const { data } = await api.get('/google-ads/spend', {
       params: { account },
+    });
+    return data;
+  },
+
+  // Get detailed metrics for a connected account
+  getMetrics: async (account: 1 | 2, days: number = 30): Promise<GoogleAdsMetrics> => {
+    const { data } = await api.get('/google-ads/metrics', {
+      params: { account, days },
     });
     return data;
   },
