@@ -16,10 +16,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
 } from 'recharts';
 import { format, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -326,7 +323,7 @@ export default function MetricsPage() {
               </div>
             </div>
 
-            {/* Installations by Product (Pie Chart) */}
+            {/* Installations by Product (Horizontal Bar Chart) */}
             <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <Package className="w-5 h-5 text-purple-500" />
@@ -335,26 +332,35 @@ export default function MetricsPage() {
               <div className="h-64">
                 {data.by_product.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={data.by_product}
-                        dataKey="count"
-                        nameKey="product_name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={({ product_name, percentage }) =>
-                          `${product_name.substring(0, 15)}... ${percentage}%`
+                    <BarChart
+                      data={data.by_product}
+                      layout="vertical"
+                      margin={{ left: 20, right: 40 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis type="number" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                      <YAxis
+                        dataKey="product_name"
+                        type="category"
+                        tick={{ fontSize: 11 }}
+                        stroke="#9ca3af"
+                        width={120}
+                        tickFormatter={(value: string) =>
+                          value.length > 18 ? `${value.substring(0, 18)}...` : value
                         }
-                        labelLine={false}
-                      >
+                      />
+                      <Tooltip
+                        formatter={(value: number, _name: string, props: { payload: ProductData }) => [
+                          `${value} (${props.payload.percentage}%)`,
+                          props.payload.product_name,
+                        ]}
+                      />
+                      <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
                         {data.by_product.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number, name: string) => [value, name]} />
-                      <Legend />
-                    </PieChart>
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
