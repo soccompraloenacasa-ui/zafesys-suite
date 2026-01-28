@@ -350,10 +350,18 @@ export default function MetricsPage() {
                         }
                       />
                       <Tooltip
-                        formatter={(value: number, _name: string, props: { payload: ProductData }) => [
-                          `${value} (${props.payload.percentage}%)`,
-                          props.payload.product_name,
-                        ]}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as ProductData;
+                            return (
+                              <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+                                <p className="font-medium text-gray-900 text-sm">{data.product_name}</p>
+                                <p className="text-gray-600 text-sm">{data.count} instalaciones ({data.percentage}%)</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
                       />
                       <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
                         {data.by_product.map((_, index) => (
