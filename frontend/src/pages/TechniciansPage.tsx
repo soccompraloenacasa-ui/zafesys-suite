@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Wrench, Phone, Mail, MapPin, Star, Calendar, Edit2 } from 'lucide-react';
+import { Plus, Wrench, Phone, Mail, MapPin, Star, Calendar, Edit2, Key, RefreshCw, Eye, EyeOff, Smartphone } from 'lucide-react';
 import { techniciansApi } from '../services/api';
 import type { Technician } from '../types';
 import Modal from '../components/common/Modal';
@@ -11,6 +11,7 @@ interface TechnicianFormData {
   document_id: string;
   zone: string;
   specialties: string;
+  pin: string;
   is_active: boolean;
 }
 
@@ -21,7 +22,13 @@ const initialFormData: TechnicianFormData = {
   document_id: '',
   zone: '',
   specialties: '',
+  pin: '',
   is_active: true,
+};
+
+// Generar PIN aleatorio de 4 dígitos
+const generatePin = (): string => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
 export default function TechniciansPage() {
@@ -33,6 +40,7 @@ export default function TechniciansPage() {
   const [formData, setFormData] = useState<TechnicianFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
 
   const fetchTechnicians = async () => {
     try {
@@ -54,6 +62,7 @@ export default function TechniciansPage() {
     setError(null);
     setIsEditMode(false);
     setEditingId(null);
+    setShowPin(false);
     setIsModalOpen(true);
   };
 
@@ -65,11 +74,13 @@ export default function TechniciansPage() {
       document_id: tech.document_id || '',
       zone: tech.zone || '',
       specialties: tech.specialties || '',
+      pin: tech.pin || '',
       is_active: tech.is_active,
     });
     setEditingId(tech.id);
     setIsEditMode(true);
     setError(null);
+    setShowPin(false);
     setIsModalOpen(true);
   };
 
@@ -79,6 +90,7 @@ export default function TechniciansPage() {
     setError(null);
     setIsEditMode(false);
     setEditingId(null);
+    setShowPin(false);
   };
 
   const handleInputChange = (
@@ -97,6 +109,12 @@ export default function TechniciansPage() {
     setFormData((prev) => ({ ...prev, is_active: !prev.is_active }));
   };
 
+  const handleGeneratePin = () => {
+    const newPin = generatePin();
+    setFormData((prev) => ({ ...prev, pin: newPin }));
+    setShowPin(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -110,6 +128,7 @@ export default function TechniciansPage() {
         document_id: formData.document_id || undefined,
         zone: formData.zone || undefined,
         specialties: formData.specialties || undefined,
+        pin: formData.pin || undefined,
         is_active: formData.is_active,
       };
 
@@ -133,7 +152,7 @@ export default function TechniciansPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tecnicos</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Técnicos</h1>
           <p className="text-gray-500">Gestiona tu equipo de instaladores</p>
         </div>
         <button
@@ -141,7 +160,7 @@ export default function TechniciansPage() {
           className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Nuevo Tecnico
+          Nuevo Técnico
         </button>
       </div>
 
@@ -153,12 +172,12 @@ export default function TechniciansPage() {
       ) : technicians.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <Wrench className="w-12 h-12 mb-3 text-gray-300" />
-          <p>No hay tecnicos registrados</p>
+          <p>No hay técnicos registrados</p>
           <button
             onClick={handleOpenModal}
             className="mt-4 text-cyan-600 hover:underline"
           >
-            Agregar primer tecnico
+            Agregar primer técnico
           </button>
         </div>
       ) : (
@@ -177,15 +196,29 @@ export default function TechniciansPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">{tech.full_name}</h3>
-                  <span
-                    className={`inline-block text-xs px-2 py-0.5 rounded mt-1 ${
-                      tech.is_active
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {tech.is_active ? 'Activo' : 'Inactivo'}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`inline-block text-xs px-2 py-0.5 rounded ${
+                        tech.is_active
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {tech.is_active ? 'Activo' : 'Inactivo'}
+                    </span>
+                    {/* Indicador de PIN */}
+                    {tech.pin ? (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-cyan-100 text-cyan-700">
+                        <Smartphone className="w-3 h-3" />
+                        App
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                        <Key className="w-3 h-3" />
+                        Sin PIN
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <Edit2 className="w-4 h-4 text-gray-400" />
               </div>
@@ -207,6 +240,13 @@ export default function TechniciansPage() {
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <MapPin className="w-4 h-4 text-gray-400" />
                     <span>{tech.zone}</span>
+                  </div>
+                )}
+
+                {tech.document_id && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Key className="w-4 h-4 text-gray-400" />
+                    <span>CC: {tech.document_id}</span>
                   </div>
                 )}
               </div>
@@ -231,7 +271,7 @@ export default function TechniciansPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title={isEditMode ? 'Editar Tecnico' : 'Nuevo Tecnico'}
+        title={isEditMode ? 'Editar Técnico' : 'Nuevo Técnico'}
         subtitle={isEditMode ? 'Modifica los datos del instalador' : 'Agrega un instalador al equipo'}
         size="md"
         footer={
@@ -247,7 +287,7 @@ export default function TechniciansPage() {
               disabled={saving || !formData.full_name || !formData.phone}
               className="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Tecnico'}
+              {saving ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Técnico'}
             </button>
           </>
         }
@@ -263,7 +303,7 @@ export default function TechniciansPage() {
           {isEditMode && (
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <p className="font-medium text-gray-900">Estado del Tecnico</p>
+                <p className="font-medium text-gray-900">Estado del Técnico</p>
                 <p className="text-sm text-gray-500">
                   {formData.is_active ? 'Puede recibir instalaciones' : 'No recibe instalaciones'}
                 </p>
@@ -301,7 +341,7 @@ export default function TechniciansPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Telefono WhatsApp *
+              Teléfono WhatsApp *
             </label>
             <input
               type="tel"
@@ -330,7 +370,7 @@ export default function TechniciansPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Cedula / Documento
+              Cédula / Documento *
             </label>
             <input
               type="text"
@@ -339,7 +379,80 @@ export default function TechniciansPage() {
               onChange={handleInputChange}
               placeholder="Ej: 1234567890"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+              required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              La cédula se usa para iniciar sesión en la app móvil
+            </p>
+          </div>
+
+          {/* PIN Section - Destacado */}
+          <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Smartphone className="w-5 h-5 text-cyan-600" />
+              <h4 className="font-medium text-cyan-900">Acceso App Móvil</h4>
+            </div>
+            
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type={showPin ? 'text' : 'password'}
+                  name="pin"
+                  value={formData.pin}
+                  onChange={handleInputChange}
+                  placeholder="PIN de 4 dígitos"
+                  maxLength={6}
+                  pattern="\d{4,6}"
+                  className="w-full px-3 py-2 border border-cyan-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleGeneratePin}
+                className="px-3 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors flex items-center gap-1"
+                title="Generar PIN aleatorio"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Generar
+              </button>
+            </div>
+            
+            {formData.pin && showPin && (
+              <div className="mt-3 p-3 bg-white rounded border border-cyan-200">
+                <p className="text-sm text-gray-600 mb-1">PIN para compartir con el técnico:</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-mono font-bold text-cyan-700 tracking-widest">
+                    {formData.pin}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formData.pin);
+                      alert('PIN copiado al portapapeles');
+                    }}
+                    className="text-xs text-cyan-600 hover:underline"
+                  >
+                    Copiar
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  El técnico usará: <strong>Cédula</strong> + <strong>PIN</strong> para ingresar a la app
+                </p>
+              </div>
+            )}
+            
+            {!formData.pin && (
+              <p className="text-xs text-cyan-700 mt-2">
+                Sin PIN, el técnico no podrá acceder a la app móvil
+              </p>
+            )}
           </div>
 
           <div>
@@ -351,7 +464,7 @@ export default function TechniciansPage() {
               name="zone"
               value={formData.zone}
               onChange={handleInputChange}
-              placeholder="Ej: Bogota Norte, Chapinero"
+              placeholder="Ej: Bogotá Norte, Chapinero"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             />
           </div>
@@ -365,7 +478,7 @@ export default function TechniciansPage() {
               value={formData.specialties}
               onChange={handleInputChange}
               rows={2}
-              placeholder="Cerraduras biometricas, cerraduras WiFi, puertas de madera..."
+              placeholder="Cerraduras biométricas, cerraduras WiFi, puertas de madera..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
             />
           </div>
