@@ -98,6 +98,13 @@ class Installation(Base):
     photos_after = Column(Text, nullable=True)   # JSON array of photo URLs after installation
     video_url = Column(String(500), nullable=True)  # Installation video URL
 
+    # Warehouse/Bodega status
+    warehouse_status = Column(String(30), default="pendiente", nullable=True)  # pendiente, preparado, entregado
+    prepared_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    prepared_at = Column(DateTime(timezone=True), nullable=True)
+    delivered_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -161,6 +161,13 @@ def run_migrations():
         );
         """,
         "CREATE INDEX IF NOT EXISTS idx_google_ads_accounts_slot ON google_ads_accounts(account_slot);",
+
+        # Warehouse/Bodega app columns for installations
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS warehouse_status VARCHAR(30) DEFAULT 'pendiente';",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS prepared_by_id INTEGER REFERENCES users(id);",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS prepared_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS delivered_by_id INTEGER REFERENCES users(id);",
+        "ALTER TABLE installations ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;",
     ]
     
     with engine.connect() as conn:
