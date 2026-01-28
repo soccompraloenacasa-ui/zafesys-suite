@@ -13,6 +13,7 @@ import {
   MapPin,
   TrendingUp,
   UserCog,
+  BarChart3,
 } from 'lucide-react';
 
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Técnicos', href: '/technicians', icon: Wrench },
   { name: 'Rastreo GPS', href: '/tech-tracking', icon: MapPin },
   { name: 'Google Ads', href: '/google-ads', icon: TrendingUp },
+  { name: 'Metricas', href: '/metricas', icon: BarChart3 },
   { name: 'Usuarios', href: '/users', icon: UserCog },
 ];
 

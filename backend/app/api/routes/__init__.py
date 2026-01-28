@@ -2,7 +2,7 @@
 ZAFESYS Suite - API Routes
 """
 from fastapi import APIRouter
-from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses, google_ads, warehouse, users
+from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses, google_ads, warehouse, users, analytics
 from app.api import inventory
 
 api_router = APIRouter()
@@ -39,3 +39,6 @@ api_router.include_router(google_ads.router, prefix="/google-ads", tags=["Google
 
 # Warehouse/Bodega App routes
 api_router.include_router(warehouse.router, prefix="/warehouse", tags=["Warehouse App"])
+
+# Analytics routes
+api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
