@@ -258,6 +258,14 @@ export default function GoogleAdsPage() {
             </div>
           ) : metrics ? (
             <>
+              {/* Info message when no data */}
+              {metrics.message && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-blue-700 text-sm">{metrics.message}</p>
+                </div>
+              )}
+
               {/* KPI Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -342,120 +350,150 @@ export default function GoogleAdsPage() {
               {/* Daily Spend Chart */}
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-8">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Gasto Diario (Últimos 30 días)</h2>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={metrics.daily_spend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(value) => {
-                          const date = new Date(value);
-                          return `${date.getDate()}/${date.getMonth() + 1}`;
-                        }}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), 'Gasto']}
-                        labelFormatter={(label) => {
-                          const date = new Date(label);
-                          return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="spend"
-                        stroke="#06b6d4"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {metrics.daily_spend.length > 0 ? (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={metrics.daily_spend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return `${date.getDate()}/${date.getMonth() + 1}`;
+                          }}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => value >= 1000 ? `$${(value / 1000).toFixed(0)}k` : `$${value}`}
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [formatCurrency(value), 'Gasto']}
+                          labelFormatter={(label) => {
+                            const date = new Date(label);
+                            return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="spend"
+                          stroke="#06b6d4"
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <div className="text-center">
+                      <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">Sin datos de gasto</p>
+                      <p className="text-gray-400 text-sm mt-1">No hay registros de gasto en este período</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Campaigns Table */}
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Rendimiento por Campaña</h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Campaña</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Gasto</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Impresiones</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Clics</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CTR</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CPC</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Conversiones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.campaigns.map((campaign) => (
-                        <tr key={campaign.campaign_id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-3 px-4">
-                            <span className="font-medium text-gray-900">{campaign.campaign_name}</span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-700">
-                            {formatCurrency(campaign.spend)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-700">
-                            {formatNumber(campaign.impressions)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-700">
-                            {formatNumber(campaign.clicks)}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className={`font-medium ${campaign.ctr >= 2 ? 'text-green-600' : campaign.ctr >= 1 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {campaign.ctr.toFixed(2)}%
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-700">
-                            {formatCurrency(campaign.cpc)}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {campaign.conversions}
-                            </span>
-                          </td>
+                {metrics.campaigns.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Campaña</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Gasto</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Impresiones</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Clics</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CTR</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CPC</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Conversiones</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {metrics.campaigns.map((campaign) => (
+                          <tr key={campaign.campaign_id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <span className="font-medium text-gray-900">{campaign.campaign_name}</span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">
+                              {formatCurrency(campaign.spend)}
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">
+                              {formatNumber(campaign.impressions)}
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">
+                              {formatNumber(campaign.clicks)}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className={`font-medium ${campaign.ctr >= 2 ? 'text-green-600' : campaign.ctr >= 1 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {campaign.ctr.toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">
+                              {formatCurrency(campaign.cpc)}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {campaign.conversions}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-12 flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">No hay campañas activas</p>
+                      <p className="text-gray-400 text-sm mt-1">No se encontraron campañas con actividad en este período</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Clicks Chart */}
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mt-8">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Clics Diarios</h2>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metrics.daily_spend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(value) => {
-                          const date = new Date(value);
-                          return `${date.getDate()}/${date.getMonth() + 1}`;
-                        }}
-                      />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip
-                        formatter={(value: number) => [formatNumber(value), 'Clics']}
-                        labelFormatter={(label) => {
-                          const date = new Date(label);
-                          return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
-                        }}
-                      />
-                      <Bar dataKey="clicks" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {metrics.daily_spend.length > 0 ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metrics.daily_spend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return `${date.getDate()}/${date.getMonth() + 1}`;
+                          }}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip
+                          formatter={(value: number) => [formatNumber(value), 'Clics']}
+                          labelFormatter={(label) => {
+                            const date = new Date(label);
+                            return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+                          }}
+                        />
+                        <Bar dataKey="clicks" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <div className="text-center">
+                      <MousePointer className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">Sin datos de clics</p>
+                      <p className="text-gray-400 text-sm mt-1">No hay registros de clics en este período</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : null}

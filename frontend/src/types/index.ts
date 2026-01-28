@@ -265,4 +265,6 @@ export interface GoogleAdsMetrics {
   campaigns: CampaignMetrics[];
   roi: ROIMetrics | null;
   currency: string;
+  has_data: boolean;
+  message: string | null;
 }
