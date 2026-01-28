@@ -249,6 +249,10 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
 
+# Legal pages (privacy policy) - no prefix for easy access
+from app.api.routes import legal
+app.include_router(legal.router, tags=["Legal"])
+
 
 @app.get("/")
 def root():
