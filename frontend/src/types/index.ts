@@ -203,3 +203,26 @@ export interface AuthToken {
   access_token: string;
   token_type: string;
 }
+
+// Google Ads types
+export interface GoogleAdsAccount {
+  connected: boolean;
+  email?: string;
+  customer_id?: string;
+  account_name?: string;
+}
+
+export interface GoogleAdsStatus {
+  account1: GoogleAdsAccount;
+  account2: GoogleAdsAccount;
+}
+
+export interface GoogleAdsSpendSummary {
+  account: 1 | 2;
+  customer_id: string;
+  account_name: string;
+  total_spend: number;
+  spend_this_month: number;
+  spend_last_7_days: number;
+  currency: string;
+}

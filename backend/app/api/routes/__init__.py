@@ -2,7 +2,7 @@
 ZAFESYS Suite - API Routes
 """
 from fastapi import APIRouter
-from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses
+from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses, google_ads
 from app.api import inventory
 
 api_router = APIRouter()
@@ -30,3 +30,6 @@ api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
 
 # Technician Mobile App routes (no admin auth - uses own PIN auth)
 api_router.include_router(tech_app.router, prefix="/tech", tags=["Technician App"])
+
+# Google Ads integration
+api_router.include_router(google_ads.router, prefix="/google-ads", tags=["Google Ads"])

@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     ELEVENLABS_WEBHOOK_SECRET: str = ""
     ELEVENLABS_AGENT_ID: str = ""
 
+    # Google Ads OAuth
+    GOOGLE_ADS_CLIENT_ID: str = ""
+    GOOGLE_ADS_CLIENT_SECRET: str = ""
+    GOOGLE_ADS_DEVELOPER_TOKEN: str = ""
+    GOOGLE_ADS_REDIRECT_URI: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True

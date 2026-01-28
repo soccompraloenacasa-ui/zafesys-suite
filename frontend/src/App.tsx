@@ -10,6 +10,7 @@ import InventoryPage from './pages/InventoryPage';
 import CustomersPage from './pages/CustomersPage';
 import DistributorsPage from './pages/DistributorsPage';
 import TechTrackingPage from './pages/TechTrackingPage';
+import GoogleAdsPage from './pages/GoogleAdsPage';
 
 // Tech App Pages
 import TechLoginPage from './pages/tech/TechLoginPage';
@@ -74,6 +75,7 @@ function App() {
                 <Route path="/technicians" element={<TechniciansPage />} />
                 <Route path="/tech-tracking" element={<TechTrackingPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />
+                <Route path="/google-ads" element={<GoogleAdsPage />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

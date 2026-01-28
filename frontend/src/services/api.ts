@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken, Customer, Distributor, DistributorSale } from '../types';
+import type { Lead, KanbanData, LeadStatus, Product, Technician, Installation, AuthToken, Customer, Distributor, DistributorSale, GoogleAdsStatus, GoogleAdsSpendSummary } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zafesys-suite-production.up.railway.app';
 
@@ -522,6 +522,37 @@ export const techApi = {
     const params: Record<string, string | number> = { limit };
     if (date) params.date_filter = date;
     const { data } = await api.get(`/tech/locations/history/${technicianId}`, { params });
+    return data;
+  },
+};
+
+// Google Ads API
+export const googleAdsApi = {
+  // Get connection status of both accounts
+  getStatus: async (): Promise<GoogleAdsStatus> => {
+    const { data } = await api.get('/google-ads/status');
+    return data;
+  },
+
+  // Initiate OAuth flow for an account
+  getAuthUrl: async (account: 1 | 2): Promise<{ auth_url: string }> => {
+    const { data } = await api.get('/google-ads/auth', {
+      params: { account },
+    });
+    return data;
+  },
+
+  // Disconnect an account
+  disconnect: async (account: 1 | 2): Promise<{ success: boolean }> => {
+    const { data } = await api.post('/google-ads/disconnect', { account });
+    return data;
+  },
+
+  // Get spend summary for a connected account
+  getSpendSummary: async (account: 1 | 2): Promise<GoogleAdsSpendSummary> => {
+    const { data } = await api.get('/google-ads/spend', {
+      params: { account },
+    });
     return data;
   },
 };

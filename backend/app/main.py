@@ -143,6 +143,24 @@ def run_migrations():
         "UPDATE installations SET payment_method = LOWER(payment_method) WHERE payment_method IS NOT NULL;",
         "UPDATE leads SET status = LOWER(status) WHERE status IS NOT NULL;",
         "UPDATE leads SET source = LOWER(source) WHERE source IS NOT NULL;",
+
+        # Google Ads accounts table
+        """
+        CREATE TABLE IF NOT EXISTS google_ads_accounts (
+            id SERIAL PRIMARY KEY,
+            account_slot INTEGER NOT NULL,
+            customer_id VARCHAR(20),
+            account_name VARCHAR(255),
+            email VARCHAR(255),
+            access_token TEXT,
+            refresh_token TEXT,
+            expires_at TIMESTAMP WITH TIME ZONE,
+            connected BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_google_ads_accounts_slot ON google_ads_accounts(account_slot);",
     ]
     
     with engine.connect() as conn:

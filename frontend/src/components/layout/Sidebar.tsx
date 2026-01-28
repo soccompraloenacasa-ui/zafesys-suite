@@ -11,6 +11,7 @@ import {
   UserCheck,
   Building2,
   MapPin,
+  TrendingUp,
 } from 'lucide-react';
 
 const navigation = [
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Inventario', href: '/inventory', icon: Boxes },
   { name: 'Técnicos', href: '/technicians', icon: Wrench },
   { name: 'Rastreo GPS', href: '/tech-tracking', icon: MapPin },
+  { name: 'Google Ads', href: '/google-ads', icon: TrendingUp },
 ];
 
 export default function Sidebar() {
