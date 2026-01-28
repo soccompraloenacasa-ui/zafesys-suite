@@ -246,31 +246,45 @@ async def fetch_accessible_customers(access_token: str) -> tuple[list[str], Opti
 async def execute_google_ads_query(
     access_token: str,
     customer_id: str,
-    query: str
+    query: str,
+    login_customer_id: Optional[str] = None
 ) -> list[dict]:
     """Execute a GAQL query against Google Ads API."""
     try:
         # Remove dashes from customer_id if present
         clean_customer_id = customer_id.replace("-", "")
 
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
+            "Content-Type": "application/json",
+        }
+
+        # Add login-customer-id header if specified (for MCC access)
+        if login_customer_id:
+            headers["login-customer-id"] = login_customer_id.replace("-", "")
+
+        url = f"{GOOGLE_ADS_BASE_URL}/customers/{clean_customer_id}/googleAds:search"
+
+        logger.info(f"Executing GAQL query for customer {clean_customer_id}")
+        logger.info(f"Query: {query[:100]}...")
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{GOOGLE_ADS_BASE_URL}/customers/{clean_customer_id}/googleAds:search",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "developer-token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
-                    "Content-Type": "application/json",
-                },
+                url,
+                headers=headers,
                 json={"query": query},
             )
 
-            logger.info(f"Google Ads query response status: {response.status_code}")
+            logger.info(f"Query response status: {response.status_code}")
 
             if response.status_code == 200:
                 data = response.json()
-                return data.get("results", [])
+                results = data.get("results", [])
+                logger.info(f"Query returned {len(results)} results")
+                return results
             else:
-                logger.error(f"Google Ads query failed: {response.text}")
+                logger.error(f"Google Ads query failed ({response.status_code}): {response.text[:500]}")
                 return []
     except Exception as e:
         logger.exception(f"Error executing Google Ads query: {e}")
@@ -545,6 +559,63 @@ async def test_google_ads_connection(
             diagnostics["api_test_result"] = f"Error: {str(e)}"
 
     return diagnostics
+
+
+@router.get("/debug-query")
+async def debug_google_ads_query(
+    account: int = Query(..., ge=1, le=2),
+    customer_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Debug endpoint to test a simple query and see raw response.
+    """
+    account_record = get_or_create_account(db, account)
+
+    if not account_record.connected:
+        raise HTTPException(status_code=400, detail="Account not connected")
+
+    access_token = await get_valid_access_token(account_record, db)
+
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Could not get valid access token")
+
+    # Use specified customer_id or account's stored one
+    cid = customer_id or account_record.customer_id
+
+    if not cid:
+        # Try to get first accessible customer
+        customer_ids, _ = await fetch_accessible_customers(access_token)
+        if customer_ids:
+            cid = customer_ids[0]
+        else:
+            return {"error": "No customer_id available"}
+
+    clean_cid = cid.replace("-", "")
+
+    # Make a simple query
+    query = "SELECT customer.id, customer.descriptive_name, customer.manager FROM customer LIMIT 1"
+
+    url = f"{GOOGLE_ADS_BASE_URL}/customers/{clean_cid}/googleAds:search"
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "developer-token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
+                "Content-Type": "application/json",
+            },
+            json={"query": query},
+        )
+
+        return {
+            "customer_id": cid,
+            "url": url,
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "body": response.text[:2000] if response.text else "EMPTY",
+        }
 
 
 @router.get("/list-customers")
