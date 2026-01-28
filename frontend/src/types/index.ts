@@ -126,8 +126,10 @@ export interface Technician {
   document_id?: string;
   zone?: string;
   specialties?: string;
+  pin?: string;  // PIN para acceso a la app móvil
   is_available: boolean;
   is_active: boolean;
+  tracking_enabled?: boolean;
   created_at: string;
 }
 
