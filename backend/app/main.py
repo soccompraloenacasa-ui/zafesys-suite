@@ -168,6 +168,9 @@ def run_migrations():
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS prepared_at TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS delivered_by_id INTEGER REFERENCES users(id);",
         "ALTER TABLE installations ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;",
+
+        # Convert users.role to VARCHAR to support warehouse role
+        "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(30) USING role::text;",
     ]
     
     with engine.connect() as conn:
