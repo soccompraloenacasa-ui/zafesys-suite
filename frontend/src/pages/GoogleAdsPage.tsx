@@ -358,6 +358,7 @@ export default function GoogleAdsPage() {
           isConnecting={connectingAccount === 1}
           onConnect={() => handleConnect(1)}
           onDisconnect={() => handleDisconnect(1)}
+          onRefresh={handleRefresh}
         />
         <AccountCard
           accountNumber={2}
@@ -367,6 +368,7 @@ export default function GoogleAdsPage() {
           isConnecting={connectingAccount === 2}
           onConnect={() => handleConnect(2)}
           onDisconnect={() => handleDisconnect(2)}
+          onRefresh={handleRefresh}
         />
       </div>
 

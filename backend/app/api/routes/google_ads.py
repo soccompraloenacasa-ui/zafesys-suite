@@ -64,6 +64,11 @@ class DisconnectRequest(BaseModel):
     account: int
 
 
+class SetCustomerIdRequest(BaseModel):
+    account: int
+    customer_id: str
+
+
 class SpendSummaryResponse(BaseModel):
     account: int
     customer_id: str
@@ -177,8 +182,14 @@ async def get_valid_access_token(account: GoogleAdsAccount, db: Session) -> Opti
     return account.access_token
 
 
-async def fetch_accessible_customers(access_token: str) -> list[str]:
-    """Fetch list of accessible Google Ads customer IDs."""
+async def fetch_accessible_customers(access_token: str) -> tuple[list[str], Optional[str]]:
+    """Fetch list of accessible Google Ads customer IDs.
+    Returns: (customer_ids, error_message)
+    """
+    if not settings.GOOGLE_ADS_DEVELOPER_TOKEN:
+        logger.error("GOOGLE_ADS_DEVELOPER_TOKEN is not configured!")
+        return [], "Developer token no configurado"
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
@@ -190,6 +201,7 @@ async def fetch_accessible_customers(access_token: str) -> list[str]:
             )
 
             logger.info(f"listAccessibleCustomers response: {response.status_code}")
+            logger.info(f"listAccessibleCustomers body: {response.text[:500]}")
 
             if response.status_code == 200:
                 data = response.json()
@@ -197,13 +209,15 @@ async def fetch_accessible_customers(access_token: str) -> list[str]:
                 resource_names = data.get("resourceNames", [])
                 customer_ids = [name.split("/")[-1] for name in resource_names]
                 logger.info(f"Found {len(customer_ids)} accessible customers: {customer_ids}")
-                return customer_ids
+                return customer_ids, None
             else:
-                logger.error(f"Failed to list customers: {response.text}")
-                return []
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get("error", {}).get("message", response.text[:200])
+                logger.error(f"Failed to list customers: {error_msg}")
+                return [], f"Error de Google Ads API: {error_msg}"
     except Exception as e:
         logger.exception(f"Error fetching accessible customers: {e}")
-        return []
+        return [], f"Error de conexión: {str(e)}"
 
 
 async def execute_google_ads_query(
@@ -358,13 +372,14 @@ async def oauth_callback(
                 user_email = userinfo.get("email")
 
         # Fetch accessible Google Ads customers
-        customer_ids = await fetch_accessible_customers(access_token)
+        customer_ids, fetch_error = await fetch_accessible_customers(access_token)
         customer_id = customer_ids[0] if customer_ids else None
 
         if customer_id:
             logger.info(f"Using customer ID: {customer_id}")
         else:
-            logger.warning("No Google Ads customer found for this account")
+            logger.warning(f"No Google Ads customer found for this account. Error: {fetch_error}")
+            # Still proceed - user can set customer_id manually later
 
         # Save to database
         account = get_or_create_account(db, account_slot)
@@ -406,6 +421,107 @@ async def disconnect_account(
 
     logger.info(f"Google Ads account {request.account} disconnected")
     return {"success": True}
+
+
+@router.post("/set-customer-id")
+async def set_customer_id(
+    request: SetCustomerIdRequest,
+    db: Session = Depends(get_db),
+):
+    """Manually set the Google Ads Customer ID for an account.
+
+    Customer ID format: 123-456-7890 or 1234567890
+    Find it in Google Ads UI top right corner.
+    """
+    if request.account not in [1, 2]:
+        raise HTTPException(status_code=400, detail="Account must be 1 or 2")
+
+    account = get_or_create_account(db, request.account)
+
+    if not account.connected:
+        raise HTTPException(status_code=400, detail="Account not connected. Connect first via OAuth.")
+
+    # Clean the customer ID (remove dashes if present)
+    clean_id = request.customer_id.replace("-", "").strip()
+
+    if not clean_id.isdigit() or len(clean_id) != 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Customer ID debe tener 10 dígitos (ej: 123-456-7890 o 1234567890)"
+        )
+
+    account.customer_id = clean_id
+    db.commit()
+
+    logger.info(f"Customer ID set for account {request.account}: {clean_id}")
+    return {"success": True, "customer_id": clean_id}
+
+
+@router.get("/test-connection")
+async def test_google_ads_connection(
+    account: int = Query(..., ge=1, le=2),
+    db: Session = Depends(get_db),
+):
+    """Test the Google Ads API connection and return diagnostic info."""
+    account_record = get_or_create_account(db, account)
+
+    diagnostics = {
+        "account_slot": account,
+        "connected": account_record.connected,
+        "email": account_record.email,
+        "customer_id": account_record.customer_id,
+        "has_access_token": bool(account_record.access_token),
+        "has_refresh_token": bool(account_record.refresh_token),
+        "developer_token_configured": bool(settings.GOOGLE_ADS_DEVELOPER_TOKEN),
+        "token_expired": False,
+        "api_test_result": None,
+        "accessible_customers": [],
+        "error": None,
+    }
+
+    if account_record.expires_at:
+        diagnostics["token_expired"] = account_record.expires_at <= datetime.now(timezone.utc)
+
+    if not account_record.connected:
+        diagnostics["error"] = "Account not connected"
+        return diagnostics
+
+    # Try to get a valid token
+    access_token = await get_valid_access_token(account_record, db)
+
+    if not access_token:
+        diagnostics["error"] = "Could not obtain valid access token"
+        return diagnostics
+
+    diagnostics["has_access_token"] = True
+
+    # Test fetching accessible customers
+    customer_ids, fetch_error = await fetch_accessible_customers(access_token)
+    diagnostics["accessible_customers"] = customer_ids
+
+    if fetch_error:
+        diagnostics["error"] = fetch_error
+
+    # If we have a customer_id, test a simple query
+    if account_record.customer_id:
+        try:
+            query = "SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1"
+            results = await execute_google_ads_query(
+                access_token,
+                account_record.customer_id,
+                query
+            )
+            if results:
+                diagnostics["api_test_result"] = "SUCCESS - API responding"
+                customer_name = results[0].get("customer", {}).get("descriptiveName", "")
+                if customer_name:
+                    diagnostics["account_name_from_api"] = customer_name
+            else:
+                diagnostics["api_test_result"] = "No results returned"
+        except Exception as e:
+            diagnostics["api_test_result"] = f"Error: {str(e)}"
+
+    return diagnostics
 
 
 @router.get("/spend")

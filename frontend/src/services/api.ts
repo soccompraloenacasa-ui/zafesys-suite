@@ -575,6 +575,35 @@ export const googleAdsApi = {
     const { data } = await api.get('/google-ads/metrics', { params });
     return data;
   },
+
+  // Manually set the Customer ID for an account
+  setCustomerId: async (account: 1 | 2, customerId: string): Promise<{ success: boolean; customer_id: string }> => {
+    const { data } = await api.post('/google-ads/set-customer-id', {
+      account,
+      customer_id: customerId,
+    });
+    return data;
+  },
+
+  // Test the Google Ads API connection
+  testConnection: async (account: 1 | 2): Promise<{
+    account_slot: number;
+    connected: boolean;
+    email: string | null;
+    customer_id: string | null;
+    has_access_token: boolean;
+    has_refresh_token: boolean;
+    developer_token_configured: boolean;
+    token_expired: boolean;
+    api_test_result: string | null;
+    accessible_customers: string[];
+    error: string | null;
+  }> => {
+    const { data } = await api.get('/google-ads/test-connection', {
+      params: { account },
+    });
+    return data;
+  },
 };
 
 export default api;
