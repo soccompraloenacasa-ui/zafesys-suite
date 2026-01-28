@@ -37,7 +37,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 # Google Ads API
-GOOGLE_ADS_API_VERSION = "v17"
+GOOGLE_ADS_API_VERSION = "v19"
 GOOGLE_ADS_BASE_URL = f"https://googleads.googleapis.com/{GOOGLE_ADS_API_VERSION}"
 
 # Google Ads API scope
