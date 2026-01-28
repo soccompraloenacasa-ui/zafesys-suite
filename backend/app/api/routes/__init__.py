@@ -2,13 +2,16 @@
 ZAFESYS Suite - API Routes
 """
 from fastapi import APIRouter
-from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses, google_ads, warehouse
+from app.api.routes import auth, leads, products, technicians, installations, webhooks, admin, tech_app, customers, distributors, warehouses, google_ads, warehouse, users
 from app.api import inventory
 
 api_router = APIRouter()
 
 # Auth routes
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+
+# Users management
+api_router.include_router(users.router, prefix="/users", tags=["Users"])
 
 # Core routes
 api_router.include_router(leads.router, prefix="/leads", tags=["Leads"])

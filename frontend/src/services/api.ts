@@ -526,6 +526,52 @@ export const techApi = {
   },
 };
 
+// Users API
+export interface UserData {
+  id: number;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role: string;
+  is_active: boolean;
+}
+
+export const usersApi = {
+  getAll: async (role?: string): Promise<UserData[]> => {
+    const params = role ? { role } : {};
+    const { data } = await api.get('/users/', { params });
+    return data;
+  },
+  getById: async (id: number): Promise<UserData> => {
+    const { data } = await api.get(`/users/${id}`);
+    return data;
+  },
+  create: async (user: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone?: string;
+    role?: string;
+  }): Promise<UserData> => {
+    const { data } = await api.post('/users/', user);
+    return data;
+  },
+  update: async (id: number, user: Partial<{
+    email: string;
+    password: string;
+    full_name: string;
+    phone: string;
+    role: string;
+    is_active: boolean;
+  }>): Promise<UserData> => {
+    const { data } = await api.put(`/users/${id}`, user);
+    return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/users/${id}`);
+  },
+};
+
 // Google Ads API
 export const googleAdsApi = {
   // Get connection status of both accounts
