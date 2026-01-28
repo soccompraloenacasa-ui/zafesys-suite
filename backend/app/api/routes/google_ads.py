@@ -191,30 +191,53 @@ async def fetch_accessible_customers(access_token: str) -> tuple[list[str], Opti
         return [], "Developer token no configurado"
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{GOOGLE_ADS_BASE_URL}/customers:listAccessibleCustomers",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "developer-token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
-                },
-            )
+        url = f"{GOOGLE_ADS_BASE_URL}/customers:listAccessibleCustomers"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
+        }
 
-            logger.info(f"listAccessibleCustomers response: {response.status_code}")
-            logger.info(f"listAccessibleCustomers body: {response.text[:500]}")
+        logger.info(f"Calling Google Ads API: {url}")
+        logger.info(f"Developer token (first 10 chars): {settings.GOOGLE_ADS_DEVELOPER_TOKEN[:10]}...")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+
+            logger.info(f"Response status: {response.status_code}")
+            logger.info(f"Response headers: {dict(response.headers)}")
+            logger.info(f"Response body (first 500 chars): {response.text[:500] if response.text else 'EMPTY'}")
 
             if response.status_code == 200:
+                if not response.text:
+                    return [], "Google Ads API retornó respuesta vacía"
+
                 data = response.json()
                 # Returns format: {"resourceNames": ["customers/1234567890", ...]}
                 resource_names = data.get("resourceNames", [])
                 customer_ids = [name.split("/")[-1] for name in resource_names]
                 logger.info(f"Found {len(customer_ids)} accessible customers: {customer_ids}")
                 return customer_ids, None
+            elif response.status_code == 401:
+                return [], "Token de acceso inválido o expirado. Reconecta la cuenta."
+            elif response.status_code == 403:
+                # This usually means the developer token doesn't have access
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", "Acceso denegado")
+                    error_status = error_data.get("error", {}).get("status", "")
+                    if "DEVELOPER_TOKEN" in str(error_data):
+                        return [], "Developer token sin acceso a producción. Verifica el nivel de acceso en Google Ads API Center."
+                    return [], f"Acceso denegado: {error_msg} ({error_status})"
+                except Exception:
+                    return [], f"Acceso denegado (403): {response.text[:200]}"
             else:
-                error_data = response.json() if response.text else {}
-                error_msg = error_data.get("error", {}).get("message", response.text[:200])
+                try:
+                    error_data = response.json() if response.text else {}
+                    error_msg = error_data.get("error", {}).get("message", response.text[:200])
+                except Exception:
+                    error_msg = response.text[:200] if response.text else "Respuesta vacía"
                 logger.error(f"Failed to list customers: {error_msg}")
-                return [], f"Error de Google Ads API: {error_msg}"
+                return [], f"Error de Google Ads API ({response.status_code}): {error_msg}"
     except Exception as e:
         logger.exception(f"Error fetching accessible customers: {e}")
         return [], f"Error de conexión: {str(e)}"
