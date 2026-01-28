@@ -132,10 +132,16 @@ export default function UsersPage() {
           role: formData.role,
           is_active: formData.is_active,
         };
-        if (formData.password) {
+        if (formData.password && formData.password.trim() !== '') {
           updateData.password = formData.password;
         }
+        console.log('Updating user:', editingId, updateData);
         await usersApi.update(editingId, updateData);
+
+        // Show success message
+        if (formData.password && formData.password.trim() !== '') {
+          alert('Usuario actualizado. La contraseña fue cambiada.');
+        }
       } else {
         if (!formData.password) {
           setError('La contrasena es requerida');
@@ -147,6 +153,7 @@ export default function UsersPage() {
       handleCloseModal();
       fetchUsers();
     } catch (err: unknown) {
+      console.error('Error saving user:', err);
       const error = err as { response?: { data?: { detail?: string } } };
       setError(error.response?.data?.detail || 'Error al guardar usuario');
     } finally {
